@@ -56,8 +56,10 @@ const mockTransactions: Transaction[] = [
   { id: 8, data: "2026-04-23", descricao: "Material de Escritório", categoria: "Materiais", centroCusto: "Administrativo", valor: -1230.0, status: "conciliado", aiCategorized: true },
 ];
 
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+const formatCurrency = (value: number) => {
+  const formatted = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Math.abs(value));
+  return value < 0 ? `- ${formatted}` : formatted;
+};
 
 const statusStyles: Record<string, string> = {
   conciliado: "bg-success/10 text-success",
