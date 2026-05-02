@@ -347,10 +347,6 @@ const Transactions = () => {
         </div>
         <div className="px-5 py-3 border-t border-border bg-muted/20 flex items-center justify-between text-xs text-muted-foreground">
           <span>{filtered.length} lançamentos encontrados</span>
-          <span className="flex items-center gap-1">
-            <Brain size={12} className="text-gold" />
-            {transactions.filter((t) => t.aiCategorized).length} categorizados por IA
-          </span>
         </div>
       </div>
 
