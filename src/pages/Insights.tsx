@@ -229,6 +229,25 @@ const Insights = () => {
               IA
             </span>
           </div>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={handleRefresh}
+              disabled={isLoading}
+              className="h-9 gap-2 bg-gold hover:bg-gold/90 text-foreground font-semibold"
+            >
+              {isLoading ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <RefreshCw size={16} />
+              )}
+              {isLoading ? "Analisando..." : "Atualizar Análise"}
+            </Button>
+            {lastUpdated && (
+              <span className="text-[10px] text-muted-foreground hidden sm:block">
+                Atualizado às {lastUpdated.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-3 py-2 rounded-lg">
             <CalendarDays size={14} />
             <span>{formattedDate}</span>
