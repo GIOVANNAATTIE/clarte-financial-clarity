@@ -1,8 +1,26 @@
 import { useState } from "react";
 import {
   Brain, TrendingUp, TrendingDown, AlertTriangle, RefreshCw, Users, ShoppingCart,
-  ArrowUpRight, ArrowDownRight, Minus,
+  ArrowUpRight, ArrowDownRight, Minus, CalendarDays,
 } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type Severity = "critical" | "warning" | "info" | "positive";
 
@@ -107,33 +125,238 @@ const severityLabels: Record<Severity, string> = {
 
 const categories = ["Todos", "Receitas", "Despesas", "Fornecedores"];
 
+const monthOptions = [
+  { value: "01", label: "Janeiro" },
+  { value: "02", label: "Fevereiro" },
+  { value: "03", label: "Março" },
+  { value: "04", label: "Abril" },
+  { value: "05", label: "Maio" },
+  { value: "06", label: "Junho" },
+  { value: "07", label: "Julho" },
+  { value: "08", label: "Agosto" },
+  { value: "09", label: "Setembro" },
+  { value: "10", label: "Outubro" },
+  { value: "11", label: "Novembro" },
+  { value: "12", label: "Dezembro" },
+];
+
+const years = ["2024", "2025", "2026"];
+
+const currentDate = new Date();
+const formattedDate = format(currentDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+
 const Insights = () => {
-  const [filter, setFilter] = useState("Todos");
+  const [categoryFilter, setCategoryFilter] = useState("Todos");
+  const [severityFilter, setSeverityFilter] = useState<Severity | "all">("all");
 
-  const filtered = filter === "Todos" ? insights : insights.filter((i) => i.category === filter);
+  // Date filters
+  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear().toString());
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
+  const [filterMode, setFilterMode] = useState<"months" | "custom">("months");
+  const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
+  const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
 
+  const toggleMonth = (value: string) => {
+    setSelectedMonths((prev) =>
+      prev.includes(value) ? prev.filter((m) => m !== value) : [...prev, value]
+    );
+  };
+
+  const selectAllMonths = () => {
+    if (selectedMonths.length === 12) {
+      setSelectedMonths([]);
+    } else {
+      setSelectedMonths(monthOptions.map((m) => m.value));
+    }
+  };
+
+  const getMonthsLabel = () => {
+    if (selectedMonths.length === 0) return "Todos os meses";
+    if (selectedMonths.length === 12) return "Todos os meses";
+    if (selectedMonths.length <= 2) {
+      return selectedMonths
+        .map((v) => monthOptions.find((m) => m.value === v)?.label)
+        .join(", ");
+    }
+    return `${selectedMonths.length} meses`;
+  };
+
+  const formatShortDate = (date: Date) =>
+    date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+  // Filter by category
+  let filtered = categoryFilter === "Todos" ? insights : insights.filter((i) => i.category === categoryFilter);
+
+  // Filter by severity
+  if (severityFilter !== "all") {
+    filtered = filtered.filter((i) => i.severity === severityFilter);
+  }
+
+  const totalCount = insights.length;
   const criticalCount = insights.filter((i) => i.severity === "critical").length;
   const warningCount = insights.filter((i) => i.severity === "warning").length;
+  const positiveCount = insights.filter((i) => i.severity === "positive").length;
+
+  const handleSeverityCardClick = (severity: Severity | "all") => {
+    setSeverityFilter((prev) => (prev === severity ? "all" : severity));
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <div className="flex items-center gap-2">
-          <Brain className="text-gold" size={24} />
-          <h1 className="font-heading text-2xl font-bold text-foreground">Inteligência Financeira</h1>
-          <span className="text-[10px] font-semibold uppercase tracking-wider bg-gold/15 text-gold px-2 py-0.5 rounded-full">
-            IA
-          </span>
+      {/* Header + Date Filters */}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <Brain className="text-gold" size={24} />
+            <h1 className="font-heading text-2xl font-bold text-foreground">Inteligência Financeira</h1>
+            <span className="text-[10px] font-semibold uppercase tracking-wider bg-gold/15 text-gold px-2 py-0.5 rounded-full">
+              IA
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-3 py-2 rounded-lg">
+            <CalendarDays size={14} />
+            <span>{formattedDate}</span>
+          </div>
         </div>
-        <p className="text-sm text-muted-foreground mt-1">Análises e alertas gerados automaticamente pela inteligência artificial</p>
+
+        {/* Date Filter Bar */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center bg-muted/50 rounded-lg p-0.5">
+            <button
+              onClick={() => setFilterMode("months")}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+                filterMode === "months" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Meses
+            </button>
+            <button
+              onClick={() => setFilterMode("custom")}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+                filterMode === "custom" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Personalizado
+            </button>
+          </div>
+
+          {filterMode === "months" ? (
+            <>
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger className="w-[100px] h-9 text-sm">
+                  <SelectValue placeholder="Ano" />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((y) => (
+                    <SelectItem key={y} value={y}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="h-9 text-sm min-w-[140px] justify-start font-normal">
+                    <CalendarDays size={14} className="mr-2 shrink-0" />
+                    {getMonthsLabel()}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-3" align="start">
+                  <div className="space-y-1">
+                    <label className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer">
+                      <Checkbox
+                        checked={selectedMonths.length === 12}
+                        onCheckedChange={selectAllMonths}
+                      />
+                      <span className="text-sm font-medium">Todos os meses</span>
+                    </label>
+                    <div className="border-t border-border my-1.5" />
+                    {monthOptions.map((m) => (
+                      <label key={m.value} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer">
+                        <Checkbox
+                          checked={selectedMonths.includes(m.value)}
+                          onCheckedChange={() => toggleMonth(m.value)}
+                        />
+                        <span className="text-sm">{m.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="h-9 text-sm min-w-[130px] justify-start font-normal">
+                    <CalendarDays size={14} className="mr-2" />
+                    {customDateFrom ? formatShortDate(customDateFrom) : "Data início"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={customDateFrom}
+                    onSelect={setCustomDateFrom}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+              <span className="text-xs text-muted-foreground">até</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="h-9 text-sm min-w-[130px] justify-start font-normal">
+                    <CalendarDays size={14} className="mr-2" />
+                    {customDateTo ? formatShortDate(customDateTo) : "Data fim"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={customDateTo}
+                    onSelect={setCustomDateTo}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Summary Cards */}
+      {/* Summary Cards - clickable for severity filter */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <SummaryCard label="Total de Alertas" value={insights.length} color="text-foreground" />
-        <SummaryCard label="Críticos" value={criticalCount} color="text-destructive" />
-        <SummaryCard label="Atenção" value={warningCount} color="text-warning" />
-        <SummaryCard label="Positivos" value={insights.filter((i) => i.severity === "positive").length} color="text-success" />
+        <SummaryCard
+          label="Total de Alertas"
+          value={totalCount}
+          color="text-foreground"
+          active={severityFilter === "all"}
+          onClick={() => handleSeverityCardClick("all")}
+        />
+        <SummaryCard
+          label="Críticos"
+          value={criticalCount}
+          color="text-destructive"
+          active={severityFilter === "critical"}
+          onClick={() => handleSeverityCardClick("critical")}
+        />
+        <SummaryCard
+          label="Atenção"
+          value={warningCount}
+          color="text-warning"
+          active={severityFilter === "warning"}
+          onClick={() => handleSeverityCardClick("warning")}
+        />
+        <SummaryCard
+          label="Positivos"
+          value={positiveCount}
+          color="text-success"
+          active={severityFilter === "positive"}
+          onClick={() => handleSeverityCardClick("positive")}
+        />
       </div>
 
       {/* Category Filter */}
@@ -141,9 +364,9 @@ const Insights = () => {
         {categories.map((cat) => (
           <button
             key={cat}
-            onClick={() => setFilter(cat)}
+            onClick={() => setCategoryFilter(cat)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-              filter === cat
+              categoryFilter === cat
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/30"
             }`}
@@ -155,6 +378,11 @@ const Insights = () => {
 
       {/* Insights List */}
       <div className="space-y-3">
+        {filtered.length === 0 && (
+          <div className="text-center py-12 text-muted-foreground text-sm">
+            Nenhum alerta encontrado para os filtros selecionados.
+          </div>
+        )}
         {filtered.map((insight) => {
           const config = severityConfig[insight.severity];
           return (
@@ -195,14 +423,19 @@ const Insights = () => {
   );
 };
 
-function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
+function SummaryCard({ label, value, color, active, onClick }: { label: string; value: number; color: string; active: boolean; onClick: () => void }) {
   return (
-    <div className="bg-card rounded-xl border border-border p-4 shadow-[var(--shadow-card)]">
+    <button
+      onClick={onClick}
+      className={cn(
+        "bg-card rounded-xl border p-4 shadow-[var(--shadow-card)] text-left transition-all duration-200 hover:shadow-[var(--shadow-elevated)]",
+        active ? "border-primary ring-1 ring-primary/30" : "border-border hover:border-primary/30"
+      )}
+    >
       <p className={`text-2xl font-bold font-heading ${color}`}>{value}</p>
       <p className="text-xs text-muted-foreground mt-1">{label}</p>
-    </div>
+    </button>
   );
 }
-
 
 export default Insights;
