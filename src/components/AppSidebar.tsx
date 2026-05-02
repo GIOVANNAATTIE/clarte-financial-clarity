@@ -1,10 +1,12 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, ArrowLeftRight, FileText, LogOut, Menu, X, Building2, ChevronDown } from "lucide-react";
+import { LayoutDashboard, ArrowLeftRight, FileText, LogOut, Menu, X, Building2, ChevronDown, Brain } from "lucide-react";
 import { useState } from "react";
 import { useClient } from "@/contexts/ClientContext";
+import logo from "@/assets/logo.png";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/insights", label: "Inteligência IA", icon: Brain },
   { to: "/transactions", label: "Movimentação", icon: ArrowLeftRight },
   { to: "/reports", label: "Relatórios", icon: FileText },
 ];
@@ -22,10 +24,8 @@ const AppSidebar = () => {
 
   const sidebarContent = (
     <>
-      <div className="p-6 pb-4">
-        <h1 className="font-heading text-2xl font-bold text-gold tracking-tight">Clarté</h1>
-        <div className="mt-1.5 h-0.5 w-8 bg-gold/40 rounded-full" />
-        <p className="text-[11px] text-sidebar-foreground/60 mt-2 tracking-widest uppercase">Sistema Financeiro</p>
+      <div className="p-5 pb-4 flex justify-center">
+        <img src={logo} alt="Clarté" className="h-16 object-contain brightness-0 invert opacity-90" />
       </div>
 
       {/* Selected Client */}

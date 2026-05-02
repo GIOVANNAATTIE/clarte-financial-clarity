@@ -1,7 +1,7 @@
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
-import { TrendingUp, TrendingDown, AlertTriangle, Brain, DollarSign, BarChart3 } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, BarChart3 } from "lucide-react";
 
 const cashFlowData = [
   { mes: "Jan", entradas: 48500, saidas: 32200 },
@@ -62,27 +62,6 @@ const Dashboard = () => {
         />
       </div>
 
-      {/* AI Alert */}
-      <div className="bg-card rounded-xl border border-gold/30 p-5 shadow-[var(--shadow-card)]">
-        <div className="flex items-start gap-3">
-          <div className="p-2 rounded-lg bg-gold/10">
-            <Brain className="text-gold" size={20} />
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <h3 className="font-heading font-semibold text-sm text-foreground">Alerta de Inteligência</h3>
-              <span className="text-[10px] font-semibold uppercase tracking-wider bg-gold/15 text-gold px-2 py-0.5 rounded-full">
-                IA
-              </span>
-            </div>
-            <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
-              <AlertTriangle className="inline text-warning mr-1" size={14} />
-              <strong>Atenção:</strong> Sua folha de pagamento subiu <strong>20%</strong> este mês em comparação ao mês anterior. 
-              Recomendamos revisar os centros de custo relacionados a pessoal.
-            </p>
-          </div>
-        </div>
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Cash Flow Chart */}
