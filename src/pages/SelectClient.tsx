@@ -26,9 +26,9 @@ const SelectClient = () => {
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-lg animate-fade-in">
         <div className="text-center mb-8">
-          <img src={logo} alt="Clarté Consultoria" className="h-24 mx-auto mb-4" />
-          <h2 className="font-heading text-xl font-bold text-foreground">Selecione o Cliente</h2>
-          <p className="text-sm text-muted-foreground mt-1">Escolha a empresa para acessar as informações</p>
+          <img src={logo} alt="Clarté Consultoria" className="h-32 mx-auto mb-4" />
+          <h2 className="font-heading text-xl text-foreground">Olá, <span className="font-bold">Administrador</span></h2>
+          <p className="text-sm text-muted-foreground mt-1">Selecione a empresa que deseja acessar</p>
         </div>
 
         <div className="bg-card rounded-xl p-6 shadow-[var(--shadow-elevated)] border border-border/50">
