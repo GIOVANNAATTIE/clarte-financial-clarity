@@ -2,7 +2,16 @@ import { useState } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
-import { TrendingUp, TrendingDown, DollarSign, BarChart3, CalendarDays } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, BarChart3, CalendarDays, Check, SlidersHorizontal } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -58,7 +67,38 @@ const formatCurrency = (value: number) =>
 
 const Dashboard = () => {
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear().toString());
-  const [selectedMonth, setSelectedMonth] = useState("all");
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
+  const [filterMode, setFilterMode] = useState<"months" | "custom">("months");
+  const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
+  const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
+
+  const toggleMonth = (value: string) => {
+    setSelectedMonths((prev) =>
+      prev.includes(value) ? prev.filter((m) => m !== value) : [...prev, value]
+    );
+  };
+
+  const selectAllMonths = () => {
+    if (selectedMonths.length === 12) {
+      setSelectedMonths([]);
+    } else {
+      setSelectedMonths(months.filter((m) => m.value !== "all").map((m) => m.value));
+    }
+  };
+
+  const getMonthsLabel = () => {
+    if (selectedMonths.length === 0) return "Todos os meses";
+    if (selectedMonths.length === 12) return "Todos os meses";
+    if (selectedMonths.length <= 2) {
+      return selectedMonths
+        .map((v) => months.find((m) => m.value === v)?.label)
+        .join(", ");
+    }
+    return `${selectedMonths.length} meses`;
+  };
+
+  const formatShortDate = (date: Date) =>
+    date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
   const totalEntradas = cashFlowData.reduce((s, d) => s + d.entradas, 0);
   const totalSaidas = cashFlowData.reduce((s, d) => s + d.saidas, 0);
@@ -68,27 +108,114 @@ const Dashboard = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="font-heading text-2xl font-bold text-foreground">Dashboard</h1>
-        <div className="flex items-center gap-3 flex-wrap">
-          <Select value={selectedYear} onValueChange={setSelectedYear}>
-            <SelectTrigger className="w-[120px] h-9 text-sm">
-              <SelectValue placeholder="Ano" />
-            </SelectTrigger>
-            <SelectContent>
-              {years.map((y) => (
-                <SelectItem key={y} value={y}>{y}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-            <SelectTrigger className="w-[160px] h-9 text-sm">
-              <SelectValue placeholder="Mês" />
-            </SelectTrigger>
-            <SelectContent>
-              {months.map((m) => (
-                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Modo de filtro */}
+          <div className="flex items-center bg-muted/50 rounded-lg p-0.5">
+            <button
+              onClick={() => setFilterMode("months")}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+                filterMode === "months" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Meses
+            </button>
+            <button
+              onClick={() => setFilterMode("custom")}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+                filterMode === "custom" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Personalizado
+            </button>
+          </div>
+
+          {filterMode === "months" ? (
+            <>
+              {/* Ano */}
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger className="w-[100px] h-9 text-sm">
+                  <SelectValue placeholder="Ano" />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((y) => (
+                    <SelectItem key={y} value={y}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Multi-select meses */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="h-9 text-sm min-w-[140px] justify-start font-normal">
+                    <CalendarDays size={14} className="mr-2 shrink-0" />
+                    {getMonthsLabel()}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-3" align="start">
+                  <div className="space-y-1">
+                    <label className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer">
+                      <Checkbox
+                        checked={selectedMonths.length === 12}
+                        onCheckedChange={selectAllMonths}
+                      />
+                      <span className="text-sm font-medium">Todos os meses</span>
+                    </label>
+                    <div className="border-t border-border my-1.5" />
+                    {months.filter((m) => m.value !== "all").map((m) => (
+                      <label key={m.value} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer">
+                        <Checkbox
+                          checked={selectedMonths.includes(m.value)}
+                          onCheckedChange={() => toggleMonth(m.value)}
+                        />
+                        <span className="text-sm">{m.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="h-9 text-sm min-w-[130px] justify-start font-normal">
+                    <CalendarDays size={14} className="mr-2" />
+                    {customDateFrom ? formatShortDate(customDateFrom) : "Data início"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={customDateFrom}
+                    onSelect={setCustomDateFrom}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+              <span className="text-xs text-muted-foreground">até</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="h-9 text-sm min-w-[130px] justify-start font-normal">
+                    <CalendarDays size={14} className="mr-2" />
+                    {customDateTo ? formatShortDate(customDateTo) : "Data fim"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={customDateTo}
+                    onSelect={setCustomDateTo}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
+
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-3 py-2 rounded-lg">
             <CalendarDays size={14} />
             <span>{formattedDate}</span>
