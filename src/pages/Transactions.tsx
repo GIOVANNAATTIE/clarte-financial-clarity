@@ -353,7 +353,12 @@ const Transactions = () => {
                   </td>
                   <td className="px-5 py-3.5 text-sm text-muted-foreground">{t.categoria}</td>
                   <td className="px-5 py-3.5 text-sm text-muted-foreground hidden lg:table-cell">{t.centroCusto}</td>
-                  <td className={`px-5 py-3.5 text-sm font-mono text-right font-medium ${t.valor >= 0 ? "text-success" : "text-destructive"}`}>
+                  <td className="px-5 py-3.5 text-center">
+                    <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${t.valor < 0 ? "bg-destructive/10 text-destructive" : "bg-success/10 text-success"}`}>
+                      {t.valor < 0 ? "Conta a Pagar" : "Conta a Receber"}
+                    </span>
+                  </td>
+                  <td className={`px-5 py-3.5 text-sm font-mono text-right font-medium whitespace-nowrap ${t.valor >= 0 ? "text-success" : "text-destructive"}`}>
                     {formatCurrency(t.valor)}
                   </td>
                   <td className="px-5 py-3.5 text-center">
