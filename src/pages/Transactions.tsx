@@ -315,8 +315,8 @@ const Transactions = () => {
                   </td>
                   <td className="px-5 py-3.5 text-sm text-muted-foreground">{t.categoria}</td>
                   <td className="px-5 py-3.5 text-sm text-muted-foreground hidden lg:table-cell">{t.centroCusto}</td>
-                  <td className={`px-5 py-3.5 text-sm font-mono font-medium whitespace-nowrap ${t.valor >= 0 ? "text-success" : "text-destructive"}`}>
-                    <span className="inline-flex items-center">{t.valor < 0 ? "- " : ""}{formatCurrency(Math.abs(t.valor))}</span>
+                  <td className={`px-5 py-3.5 text-sm font-mono font-medium whitespace-nowrap text-center ${t.valor >= 0 ? "text-success" : "text-destructive"}`}>
+                    {t.valor < 0 ? "- " : ""}{formatCurrency(Math.abs(t.valor))}
                   </td>
                   <td className="px-5 py-3.5 text-center">
                     <span className={`text-[11px] font-semibold capitalize px-2.5 py-1 rounded-full ${statusStyles[t.status]}`}>
