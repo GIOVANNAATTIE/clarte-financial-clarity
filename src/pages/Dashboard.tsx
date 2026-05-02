@@ -43,24 +43,36 @@ const years = ["2024", "2025", "2026"];
 const currentDate = new Date();
 const formattedDate = format(currentDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
 
-const cashFlowData = [
-  { mes: "Jan", entradas: 48500, saidas: 32200 },
-  { mes: "Fev", entradas: 52300, saidas: 35800 },
-  { mes: "Mar", entradas: 49100, saidas: 41200 },
-  { mes: "Abr", entradas: 61200, saidas: 38900 },
-  { mes: "Mai", entradas: 55800, saidas: 42100 },
-  { mes: "Jun", entradas: 67400, saidas: 39700 },
+const allCashFlowData = [
+  { mes: "Jan", monthKey: "01", entradas: 48500, saidas: 32200 },
+  { mes: "Fev", monthKey: "02", entradas: 52300, saidas: 35800 },
+  { mes: "Mar", monthKey: "03", entradas: 49100, saidas: 41200 },
+  { mes: "Abr", monthKey: "04", entradas: 61200, saidas: 38900 },
+  { mes: "Mai", monthKey: "05", entradas: 55800, saidas: 42100 },
+  { mes: "Jun", monthKey: "06", entradas: 67400, saidas: 39700 },
+  { mes: "Jul", monthKey: "07", entradas: 58200, saidas: 37500 },
+  { mes: "Ago", monthKey: "08", entradas: 63100, saidas: 40800 },
+  { mes: "Set", monthKey: "09", entradas: 59800, saidas: 43200 },
+  { mes: "Out", monthKey: "10", entradas: 71200, saidas: 45100 },
+  { mes: "Nov", monthKey: "11", entradas: 68500, saidas: 41900 },
+  { mes: "Dez", monthKey: "12", entradas: 74300, saidas: 48200 },
 ];
 
-const dreData = [
-  { label: "Receita Bruta", value: 334300, type: "income" as const },
-  { label: "(-) Deduções", value: -18200, type: "expense" as const },
-  { label: "Receita Líquida", value: 316100, type: "income" as const },
-  { label: "(-) CMV", value: -128400, type: "expense" as const },
-  { label: "Lucro Bruto", value: 187700, type: "income" as const },
-  { label: "(-) Despesas Operacionais", value: -95800, type: "expense" as const },
-  { label: "Resultado Operacional", value: 91900, type: "income" as const },
-];
+// DRE mensal (valores por mês para permitir filtro)
+const monthlyDreData: Record<string, { receitaBruta: number; deducoes: number; cmv: number; despesasOp: number }> = {
+  "01": { receitaBruta: 48500, deducoes: 2600, cmv: 18700, despesasOp: 13900 },
+  "02": { receitaBruta: 52300, deducoes: 2800, cmv: 20100, despesasOp: 15100 },
+  "03": { receitaBruta: 49100, deducoes: 2700, cmv: 19200, despesasOp: 14200 },
+  "04": { receitaBruta: 61200, deducoes: 3300, cmv: 23500, despesasOp: 17600 },
+  "05": { receitaBruta: 55800, deducoes: 3000, cmv: 21400, despesasOp: 16000 },
+  "06": { receitaBruta: 67400, deducoes: 3600, cmv: 25900, despesasOp: 19300 },
+  "07": { receitaBruta: 58200, deducoes: 3100, cmv: 22400, despesasOp: 16700 },
+  "08": { receitaBruta: 63100, deducoes: 3400, cmv: 24300, despesasOp: 18100 },
+  "09": { receitaBruta: 59800, deducoes: 3200, cmv: 23000, despesasOp: 17200 },
+  "10": { receitaBruta: 71200, deducoes: 3800, cmv: 27400, despesasOp: 20400 },
+  "11": { receitaBruta: 68500, deducoes: 3700, cmv: 26300, despesasOp: 19600 },
+  "12": { receitaBruta: 74300, deducoes: 4000, cmv: 28600, despesasOp: 21300 },
+};
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
