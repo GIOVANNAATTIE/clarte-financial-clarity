@@ -319,61 +319,97 @@ const Dashboard = () => {
       </div>
 
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Cash Flow Chart */}
-        <div className="lg:col-span-3 bg-card rounded-xl border border-border p-5 shadow-[var(--shadow-card)]">
-          <div className="flex items-center gap-2 mb-5">
-            <BarChart3 className="text-primary" size={18} />
-            <h2 className="font-heading font-semibold text-foreground">Fluxo de Caixa</h2>
+      {/* Contas em Atraso */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-card rounded-xl border border-border p-5 shadow-[var(--shadow-card)]">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="p-2 rounded-lg bg-destructive/10">
+              <AlertCircle className="text-destructive" size={18} />
+            </div>
+            <div>
+              <h2 className="font-heading font-semibold text-foreground text-sm">Contas a Receber em Atraso</h2>
+              <p className="text-xs text-muted-foreground">Títulos vencidos não recebidos</p>
+            </div>
           </div>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={filteredCashFlow}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(0, 0%, 90%)" />
-                <XAxis dataKey="mes" tick={{ fontSize: 12, fill: "hsl(0, 0%, 45%)" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "hsl(0, 0%, 45%)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: "8px",
-                    border: "1px solid hsl(0, 0%, 90%)",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-                    fontSize: "13px",
-                  }}
-                  formatter={(value: number) => formatCurrency(value)}
-                />
-                <Legend />
-                <Bar dataKey="entradas" name="Entradas" fill="hsl(152, 60%, 40%)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="saidas" name="Saídas" fill="hsl(0, 65%, 55%)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* DRE Summary */}
-        <div className="lg:col-span-2 bg-card rounded-xl border border-border p-5 shadow-[var(--shadow-card)]">
-          <div className="flex items-center gap-2 mb-5">
-            <FileIcon className="text-primary" size={18} />
-            <h2 className="font-heading font-semibold text-foreground">DRE Simplificado</h2>
-          </div>
-          <div className="space-y-3">
-            {filteredDre.map((item, i) => (
-              <div
-                key={i}
-                className={`flex items-center justify-between py-2 ${
-                  i < filteredDre.length - 1 ? "border-b border-border/50" : ""
-                } ${item.label.includes("Resultado") || item.label.includes("Lucro") ? "font-semibold" : ""}`}
-              >
-                <span className="text-sm text-foreground">{item.label}</span>
-                <span
-                  className={`text-sm font-mono ${
-                    item.type === "income" ? "text-success" : "text-destructive"
-                  }`}
-                >
-                  {formatCurrency(Math.abs(item.value))}
-                </span>
+          <p className="text-2xl font-bold font-heading text-destructive mb-3">{formatCurrency(42850)}</p>
+          <div className="space-y-2">
+            {[
+              { cliente: "Cliente ABC Ltda", valor: 18500, dias: 32 },
+              { cliente: "Distribuidora Norte", valor: 12350, dias: 15 },
+              { cliente: "Serviços Delta", valor: 8200, dias: 8 },
+              { cliente: "Comércio Alfa", valor: 3800, dias: 5 },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-foreground truncate">{item.cliente}</p>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock size={10} /> {item.dias} dias em atraso
+                  </p>
+                </div>
+                <span className="text-sm font-mono text-destructive font-medium">{formatCurrency(item.valor)}</span>
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="bg-card rounded-xl border border-border p-5 shadow-[var(--shadow-card)]">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="p-2 rounded-lg bg-amber-500/10">
+              <AlertCircle className="text-amber-500" size={18} />
+            </div>
+            <div>
+              <h2 className="font-heading font-semibold text-foreground text-sm">Contas a Pagar em Atraso</h2>
+              <p className="text-xs text-muted-foreground">Títulos vencidos não pagos</p>
+            </div>
+          </div>
+          <p className="text-2xl font-bold font-heading text-amber-500 mb-3">{formatCurrency(27600)}</p>
+          <div className="space-y-2">
+            {[
+              { fornecedor: "Fornecedor X Materiais", valor: 12400, dias: 20 },
+              { fornecedor: "Energia Elétrica", valor: 6800, dias: 12 },
+              { fornecedor: "Aluguel Sala Comercial", valor: 5200, dias: 7 },
+              { fornecedor: "Internet & Telecom", valor: 3200, dias: 3 },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-foreground truncate">{item.fornecedor}</p>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock size={10} /> {item.dias} dias em atraso
+                  </p>
+                </div>
+                <span className="text-sm font-mono text-amber-500 font-medium">{formatCurrency(item.valor)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Fluxo de Caixa */}
+      <div className="bg-card rounded-xl border border-border p-5 shadow-[var(--shadow-card)]">
+        <div className="flex items-center gap-2 mb-5">
+          <BarChart3 className="text-primary" size={18} />
+          <h2 className="font-heading font-semibold text-foreground">Fluxo de Caixa</h2>
+        </div>
+        <div className="h-72">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={filteredCashFlow}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(0, 0%, 90%)" />
+              <XAxis dataKey="mes" tick={{ fontSize: 12, fill: "hsl(0, 0%, 45%)" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "hsl(0, 0%, 45%)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+              <Tooltip
+                contentStyle={{
+                  borderRadius: "8px",
+                  border: "1px solid hsl(0, 0%, 90%)",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                  fontSize: "13px",
+                }}
+                formatter={(value: number) => formatCurrency(value)}
+              />
+              <Legend />
+              <Bar dataKey="entradas" name="Entradas" fill="hsl(152, 60%, 40%)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="saidas" name="Saídas" fill="hsl(0, 65%, 55%)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>
