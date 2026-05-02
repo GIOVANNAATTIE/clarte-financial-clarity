@@ -46,13 +46,13 @@ type Transaction = {
 };
 
 const mockTransactions: Transaction[] = [
-  { id: 1, data: "2026-04-30", descricao: "Pagamento Fornecedor ABC", categoria: "Fornecedores", centroCusto: "Operações", valor: -12450.0, status: "conciliado", aiCategorized: true },
-  { id: 2, data: "2026-04-29", descricao: "Recebimento Cliente XYZ", categoria: "Receitas", centroCusto: "Comercial", valor: 28900.0, status: "conciliado", aiCategorized: false },
-  { id: 3, data: "2026-04-28", descricao: "Folha de Pagamento Abril", categoria: "Pessoal", centroCusto: "RH", valor: -45320.0, status: "conciliado", aiCategorized: true },
-  { id: 4, data: "2026-04-27", descricao: "Aluguel Sede Administrativa", categoria: "Infraestrutura", centroCusto: "Administrativo", valor: -8500.0, status: "pendente", aiCategorized: true },
-  { id: 5, data: "2026-04-26", descricao: "Venda Produto Premium", categoria: "Receitas", centroCusto: "Comercial", valor: 15750.0, status: "conciliado", aiCategorized: false },
-  { id: 6, data: "2026-04-25", descricao: "Serviço de Consultoria", categoria: "Serviços", centroCusto: "Projetos", valor: -6200.0, status: "revisão", aiCategorized: true },
-  { id: 7, data: "2026-04-24", descricao: "Recebimento Parcela 3/6", categoria: "Receitas", centroCusto: "Comercial", valor: 9800.0, status: "pendente", aiCategorized: false },
+  { id: 1, data: "2026-04-30", descricao: "Fornecedor ABC", categoria: "Fornecedores", centroCusto: "Operações", valor: -12450.0, status: "conciliado", aiCategorized: true },
+  { id: 2, data: "2026-04-29", descricao: "Cliente XYZ", categoria: "Receitas", centroCusto: "Comercial", valor: 28900.0, status: "conciliado", aiCategorized: false },
+  { id: 3, data: "2026-04-28", descricao: "Folha Abril", categoria: "Pessoal", centroCusto: "RH", valor: -45320.0, status: "conciliado", aiCategorized: true },
+  { id: 4, data: "2026-04-27", descricao: "Sede Administrativa", categoria: "Infraestrutura", centroCusto: "Administrativo", valor: -8500.0, status: "pendente", aiCategorized: true },
+  { id: 5, data: "2026-04-26", descricao: "Produto Premium", categoria: "Receitas", centroCusto: "Comercial", valor: 15750.0, status: "conciliado", aiCategorized: false },
+  { id: 6, data: "2026-04-25", descricao: "Consultoria Silva", categoria: "Serviços", centroCusto: "Projetos", valor: -6200.0, status: "revisão", aiCategorized: true },
+  { id: 7, data: "2026-04-24", descricao: "Parcela 3/6", categoria: "Receitas", centroCusto: "Comercial", valor: 9800.0, status: "pendente", aiCategorized: false },
   { id: 8, data: "2026-04-23", descricao: "Material de Escritório", categoria: "Materiais", centroCusto: "Administrativo", valor: -1230.0, status: "conciliado", aiCategorized: true },
 ];
 
@@ -315,8 +315,8 @@ const Transactions = () => {
                   </td>
                   <td className="px-5 py-3.5 text-sm text-muted-foreground">{t.categoria}</td>
                   <td className="px-5 py-3.5 text-sm text-muted-foreground hidden lg:table-cell">{t.centroCusto}</td>
-                  <td className={`px-5 py-3.5 text-sm font-mono font-medium whitespace-nowrap ${t.valor >= 0 ? "text-success" : "text-destructive"}`}>
-                    <span className="inline-flex items-center">{t.valor < 0 ? "- " : ""}{formatCurrency(Math.abs(t.valor))}</span>
+                  <td className={`px-5 py-3.5 text-sm font-mono font-medium whitespace-nowrap text-center ${t.valor >= 0 ? "text-success" : "text-destructive"}`}>
+                    {t.valor < 0 ? "- " : ""}{formatCurrency(Math.abs(t.valor))}
                   </td>
                   <td className="px-5 py-3.5 text-center">
                     <span className={`text-[11px] font-semibold capitalize px-2.5 py-1 rounded-full ${statusStyles[t.status]}`}>
