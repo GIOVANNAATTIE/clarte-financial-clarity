@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { TrendingUp, TrendingDown, DollarSign, BarChart3, CalendarDays, Check, SlidersHorizontal } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
