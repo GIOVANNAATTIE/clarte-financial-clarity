@@ -151,18 +151,45 @@ const Transactions = () => {
     setDeleteId(null);
   };
 
+  const handleExportExcel = () => {
+    const header = ["Data", "Tipo", "Descrição", "Categoria", "Centro de Custo", "Valor", "Status"];
+    const rows = filtered.map(t => [
+      new Date(t.data).toLocaleDateString("pt-BR"),
+      t.valor < 0 ? "Conta a Pagar" : "Conta a Receber",
+      t.descricao,
+      t.categoria,
+      t.centroCusto,
+      t.valor.toFixed(2).replace(".", ","),
+      t.status,
+    ]);
+    const csvContent = [header, ...rows].map(r => r.map(c => `"${c}"`).join(";")).join("\n");
+    const BOM = "\uFEFF";
+    const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `movimentacao_${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="font-heading text-2xl font-bold text-foreground">Movimentação</h1>
         </div>
-        <Dialog open={importOpen} onOpenChange={setImportOpen}>
-          <DialogTrigger asChild>
-            <Button variant="hero" size="lg" className="gap-2">
-              <Upload size={18} />
-              Importar Extrato
-            </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="lg" className="gap-2" onClick={handleExportExcel}>
+            <Download size={18} />
+            Exportar Excel
+          </Button>
+          <Dialog open={importOpen} onOpenChange={setImportOpen}>
+            <DialogTrigger asChild>
+              <Button variant="hero" size="lg" className="gap-2">
+                <Upload size={18} />
+                Importar Extrato
+              </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
