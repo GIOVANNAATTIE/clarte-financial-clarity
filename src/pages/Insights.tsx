@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Brain, TrendingUp, TrendingDown, AlertTriangle, RefreshCw, Users, ShoppingCart,
   ArrowUpRight, ArrowDownRight, Minus,
@@ -203,6 +204,5 @@ function SummaryCard({ label, value, color }: { label: string; value: number; co
   );
 }
 
-import { useState } from "react";
 
 export default Insights;
