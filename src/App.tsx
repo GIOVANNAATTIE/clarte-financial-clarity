@@ -11,10 +11,14 @@ import Dashboard from "./pages/Dashboard";
 import Insights from "./pages/Insights";
 import Transactions from "./pages/Transactions";
 import Lancamentos from "./pages/Lancamentos";
+import FluxoCaixa from "./pages/FluxoCaixa";
+import DRE from "./pages/DRE";
 import ClientesFornecedores from "./pages/ClientesFornecedores";
 import Classificacoes from "./pages/Classificacoes";
 import Reports from "./pages/Reports";
 import ClientSettings from "./pages/ClientSettings";
+import TrilhaAuditoria from "./pages/TrilhaAuditoria";
+import MeuPerfil from "./pages/MeuPerfil";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 
@@ -36,10 +40,14 @@ const App = () => (
               <Route path="/insights" element={<Insights />} />
               <Route path="/transactions" element={<Transactions />} />
               <Route path="/lancamentos" element={<Lancamentos />} />
+              <Route path="/fluxo-caixa" element={<FluxoCaixa />} />
+              <Route path="/dre" element={<DRE />} />
               <Route path="/clientes-fornecedores" element={<ClientesFornecedores />} />
               <Route path="/classificacoes" element={<Classificacoes />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/settings" element={<ClientSettings />} />
+              <Route path="/trilha-auditoria" element={<TrilhaAuditoria />} />
+              <Route path="/meu-perfil" element={<MeuPerfil />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
