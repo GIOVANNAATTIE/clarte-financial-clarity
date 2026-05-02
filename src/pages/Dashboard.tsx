@@ -67,7 +67,38 @@ const formatCurrency = (value: number) =>
 
 const Dashboard = () => {
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear().toString());
-  const [selectedMonth, setSelectedMonth] = useState("all");
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
+  const [filterMode, setFilterMode] = useState<"months" | "custom">("months");
+  const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
+  const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
+
+  const toggleMonth = (value: string) => {
+    setSelectedMonths((prev) =>
+      prev.includes(value) ? prev.filter((m) => m !== value) : [...prev, value]
+    );
+  };
+
+  const selectAllMonths = () => {
+    if (selectedMonths.length === 12) {
+      setSelectedMonths([]);
+    } else {
+      setSelectedMonths(months.filter((m) => m.value !== "all").map((m) => m.value));
+    }
+  };
+
+  const getMonthsLabel = () => {
+    if (selectedMonths.length === 0) return "Todos os meses";
+    if (selectedMonths.length === 12) return "Todos os meses";
+    if (selectedMonths.length <= 2) {
+      return selectedMonths
+        .map((v) => months.find((m) => m.value === v)?.label)
+        .join(", ");
+    }
+    return `${selectedMonths.length} meses`;
+  };
+
+  const formatShortDate = (date: Date) =>
+    date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
   const totalEntradas = cashFlowData.reduce((s, d) => s + d.entradas, 0);
   const totalSaidas = cashFlowData.reduce((s, d) => s + d.saidas, 0);
