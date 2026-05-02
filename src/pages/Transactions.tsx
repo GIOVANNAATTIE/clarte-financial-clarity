@@ -46,13 +46,13 @@ type Transaction = {
 };
 
 const mockTransactions: Transaction[] = [
-  { id: 1, data: "2026-04-30", descricao: "Pagamento Fornecedor ABC", categoria: "Fornecedores", centroCusto: "Operações", valor: -12450.0, status: "conciliado", aiCategorized: true },
-  { id: 2, data: "2026-04-29", descricao: "Recebimento Cliente XYZ", categoria: "Receitas", centroCusto: "Comercial", valor: 28900.0, status: "conciliado", aiCategorized: false },
-  { id: 3, data: "2026-04-28", descricao: "Folha de Pagamento Abril", categoria: "Pessoal", centroCusto: "RH", valor: -45320.0, status: "conciliado", aiCategorized: true },
+  { id: 1, data: "2026-04-30", descricao: "Fornecedor ABC", categoria: "Fornecedores", centroCusto: "Operações", valor: -12450.0, status: "conciliado", aiCategorized: true },
+  { id: 2, data: "2026-04-29", descricao: "Cliente XYZ", categoria: "Receitas", centroCusto: "Comercial", valor: 28900.0, status: "conciliado", aiCategorized: false },
+  { id: 3, data: "2026-04-28", descricao: "Folha Abril", categoria: "Pessoal", centroCusto: "RH", valor: -45320.0, status: "conciliado", aiCategorized: true },
   { id: 4, data: "2026-04-27", descricao: "Aluguel Sede Administrativa", categoria: "Infraestrutura", centroCusto: "Administrativo", valor: -8500.0, status: "pendente", aiCategorized: true },
   { id: 5, data: "2026-04-26", descricao: "Venda Produto Premium", categoria: "Receitas", centroCusto: "Comercial", valor: 15750.0, status: "conciliado", aiCategorized: false },
-  { id: 6, data: "2026-04-25", descricao: "Serviço de Consultoria", categoria: "Serviços", centroCusto: "Projetos", valor: -6200.0, status: "revisão", aiCategorized: true },
-  { id: 7, data: "2026-04-24", descricao: "Recebimento Parcela 3/6", categoria: "Receitas", centroCusto: "Comercial", valor: 9800.0, status: "pendente", aiCategorized: false },
+  { id: 6, data: "2026-04-25", descricao: "Consultoria Delta", categoria: "Serviços", centroCusto: "Projetos", valor: -6200.0, status: "revisão", aiCategorized: true },
+  { id: 7, data: "2026-04-24", descricao: "Parcela 3/6", categoria: "Receitas", centroCusto: "Comercial", valor: 9800.0, status: "pendente", aiCategorized: false },
   { id: 8, data: "2026-04-23", descricao: "Material de Escritório", categoria: "Materiais", centroCusto: "Administrativo", valor: -1230.0, status: "conciliado", aiCategorized: true },
 ];
 
