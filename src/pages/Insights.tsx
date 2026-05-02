@@ -148,6 +148,9 @@ const formattedDate = format(currentDate, "dd 'de' MMMM 'de' yyyy", { locale: pt
 const Insights = () => {
   const [categoryFilter, setCategoryFilter] = useState("Todos");
   const [severityFilter, setSeverityFilter] = useState<Severity | "all">("all");
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // Date filters
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear().toString());
