@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   Brain, TrendingUp, TrendingDown, AlertTriangle, RefreshCw, Users, ShoppingCart,
-  ArrowUpRight, ArrowDownRight, Minus, CalendarDays,
+  ArrowUpRight, ArrowDownRight, Minus, CalendarDays, Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -148,6 +148,9 @@ const formattedDate = format(currentDate, "dd 'de' MMMM 'de' yyyy", { locale: pt
 const Insights = () => {
   const [categoryFilter, setCategoryFilter] = useState("Todos");
   const [severityFilter, setSeverityFilter] = useState<Severity | "all">("all");
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // Date filters
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear().toString());
@@ -184,21 +187,34 @@ const Insights = () => {
   const formatShortDate = (date: Date) =>
     date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
+  // Only show data after clicking "Atualizar"
+  const activeInsights = isLoaded ? insights : [];
+
   // Filter by category
-  let filtered = categoryFilter === "Todos" ? insights : insights.filter((i) => i.category === categoryFilter);
+  let filtered = categoryFilter === "Todos" ? activeInsights : activeInsights.filter((i) => i.category === categoryFilter);
 
   // Filter by severity
   if (severityFilter !== "all") {
     filtered = filtered.filter((i) => i.severity === severityFilter);
   }
 
-  const totalCount = insights.length;
-  const criticalCount = insights.filter((i) => i.severity === "critical").length;
-  const warningCount = insights.filter((i) => i.severity === "warning").length;
-  const positiveCount = insights.filter((i) => i.severity === "positive").length;
+  const totalCount = activeInsights.length;
+  const criticalCount = activeInsights.filter((i) => i.severity === "critical").length;
+  const warningCount = activeInsights.filter((i) => i.severity === "warning").length;
+  const positiveCount = activeInsights.filter((i) => i.severity === "positive").length;
 
   const handleSeverityCardClick = (severity: Severity | "all") => {
     setSeverityFilter((prev) => (prev === severity ? "all" : severity));
+  };
+
+  const handleRefresh = () => {
+    setIsLoading(true);
+    // Simula chamada de IA (futuramente será a chamada real)
+    setTimeout(() => {
+      setIsLoaded(true);
+      setIsLoading(false);
+      setLastUpdated(new Date());
+    }, 2000);
   };
 
   return (
@@ -212,6 +228,25 @@ const Insights = () => {
             <span className="text-[10px] font-semibold uppercase tracking-wider bg-gold/15 text-gold px-2 py-0.5 rounded-full">
               IA
             </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={handleRefresh}
+              disabled={isLoading}
+              className="h-9 gap-2 bg-gold hover:bg-gold/90 text-foreground font-semibold"
+            >
+              {isLoading ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <RefreshCw size={16} />
+              )}
+              {isLoading ? "Analisando..." : "Atualizar Análise"}
+            </Button>
+            {lastUpdated && (
+              <span className="text-[10px] text-muted-foreground hidden sm:block">
+                Atualizado às {lastUpdated.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-3 py-2 rounded-lg">
             <CalendarDays size={14} />
@@ -378,7 +413,21 @@ const Insights = () => {
 
       {/* Insights List */}
       <div className="space-y-3">
-        {filtered.length === 0 && (
+        {!isLoaded && !isLoading && (
+          <div className="text-center py-16 bg-card rounded-xl border border-border shadow-[var(--shadow-card)]">
+            <Brain className="mx-auto text-muted-foreground/30 mb-4" size={48} />
+            <p className="text-muted-foreground font-medium">Clique em "Atualizar Análise" para gerar os insights</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">A análise será feita com base nos filtros selecionados</p>
+          </div>
+        )}
+        {isLoading && (
+          <div className="text-center py-16 bg-card rounded-xl border border-border shadow-[var(--shadow-card)]">
+            <Loader2 className="mx-auto text-gold animate-spin mb-4" size={48} />
+            <p className="text-muted-foreground font-medium">Analisando dados financeiros...</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">A IA está processando as informações</p>
+          </div>
+        )}
+        {isLoaded && !isLoading && filtered.length === 0 && (
           <div className="text-center py-12 text-muted-foreground text-sm">
             Nenhum alerta encontrado para os filtros selecionados.
           </div>
