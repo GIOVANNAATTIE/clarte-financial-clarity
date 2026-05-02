@@ -8,7 +8,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, Search, Brain, Filter, ArrowUpDown } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Upload, Search, Brain, Filter, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, FileSpreadsheet, FileText } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 type Transaction = {
   id: number;
@@ -41,68 +57,219 @@ const statusStyles: Record<string, string> = {
   "revisão": "bg-destructive/10 text-destructive",
 };
 
+const banks = [
+  "Banco do Brasil", "Bradesco", "Itaú", "Santander", "Caixa Econômica", "Nubank", "Inter", "Sicoob", "Sicredi", "Outro"
+];
+
+type SortField = "data" | "descricao" | "categoria" | "centroCusto" | "valor" | "status";
+type SortDir = "asc" | "desc";
+
 const Transactions = () => {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("todas");
-  const [periodFilter, setPeriodFilter] = useState("mensal");
+  const [statusFilter, setStatusFilter] = useState("todos");
+  const [costCenterFilter, setCostCenterFilter] = useState("todos");
+  const [dateFrom, setDateFrom] = useState<Date>();
+  const [dateTo, setDateTo] = useState<Date>();
+  const [sortField, setSortField] = useState<SortField>("data");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [importOpen, setImportOpen] = useState(false);
+  const [importType, setImportType] = useState<"ofx" | "csv">("ofx");
+  const [selectedBank, setSelectedBank] = useState("");
 
-  const filtered = mockTransactions.filter((t) => {
-    const matchSearch = t.descricao.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = categoryFilter === "todas" || t.categoria === categoryFilter;
-    return matchSearch && matchCategory;
-  });
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown size={12} className="text-muted-foreground/50" />;
+    return sortDir === "asc" ? <ArrowUp size={12} className="text-gold" /> : <ArrowDown size={12} className="text-gold" />;
+  };
+
+  const filtered = mockTransactions
+    .filter((t) => {
+      const matchSearch = t.descricao.toLowerCase().includes(search.toLowerCase());
+      const matchCategory = categoryFilter === "todas" || t.categoria === categoryFilter;
+      const matchStatus = statusFilter === "todos" || t.status === statusFilter;
+      const matchCostCenter = costCenterFilter === "todos" || t.centroCusto === costCenterFilter;
+      const tDate = new Date(t.data);
+      const matchDateFrom = !dateFrom || tDate >= dateFrom;
+      const matchDateTo = !dateTo || tDate <= dateTo;
+      return matchSearch && matchCategory && matchStatus && matchCostCenter && matchDateFrom && matchDateTo;
+    })
+    .sort((a, b) => {
+      let cmp = 0;
+      if (sortField === "data") cmp = a.data.localeCompare(b.data);
+      else if (sortField === "descricao") cmp = a.descricao.localeCompare(b.descricao);
+      else if (sortField === "categoria") cmp = a.categoria.localeCompare(b.categoria);
+      else if (sortField === "centroCusto") cmp = a.centroCusto.localeCompare(b.centroCusto);
+      else if (sortField === "valor") cmp = a.valor - b.valor;
+      else if (sortField === "status") cmp = a.status.localeCompare(b.status);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
 
   const categories = [...new Set(mockTransactions.map((t) => t.categoria))];
+  const costCenters = [...new Set(mockTransactions.map((t) => t.centroCusto))];
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="font-heading text-2xl font-bold text-foreground">Movimentação Bancária</h1>
+          <h1 className="font-heading text-2xl font-bold text-foreground">Movimentação</h1>
           <p className="text-sm text-muted-foreground mt-1">Gerencie seus lançamentos financeiros</p>
         </div>
-        <Button variant="hero" size="lg" className="gap-2">
-          <Upload size={18} />
-          Importar Extrato (OFX/Excel)
-        </Button>
+        <Dialog open={importOpen} onOpenChange={setImportOpen}>
+          <DialogTrigger asChild>
+            <Button variant="hero" size="lg" className="gap-2">
+              <Upload size={18} />
+              Importar Extrato
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Importar Extrato</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setImportType("ofx")}
+                  className={cn(
+                    "flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all",
+                    importType === "ofx" ? "border-gold bg-gold/5" : "border-border hover:border-gold/50"
+                  )}
+                >
+                  <FileText size={28} className={importType === "ofx" ? "text-gold" : "text-muted-foreground"} />
+                  <span className="text-sm font-medium">OFX</span>
+                  <span className="text-[10px] text-muted-foreground">Formato padrão bancário</span>
+                </button>
+                <button
+                  onClick={() => setImportType("csv")}
+                  className={cn(
+                    "flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all",
+                    importType === "csv" ? "border-gold bg-gold/5" : "border-border hover:border-gold/50"
+                  )}
+                >
+                  <FileSpreadsheet size={28} className={importType === "csv" ? "text-gold" : "text-muted-foreground"} />
+                  <span className="text-sm font-medium">CSV Personalizado</span>
+                  <span className="text-[10px] text-muted-foreground">Layout por banco</span>
+                </button>
+              </div>
+
+              {importType === "csv" && (
+                <Select value={selectedBank} onValueChange={setSelectedBank}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o banco" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {banks.map((b) => (
+                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-gold/50 transition-colors cursor-pointer">
+                <Upload size={32} className="mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm font-medium text-foreground">Arraste o arquivo ou clique para selecionar</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {importType === "ofx" ? "Aceita arquivos .ofx" : `Aceita arquivos .csv${selectedBank ? ` — Layout ${selectedBank}` : ""}`}
+                </p>
+              </div>
+
+              <Button className="w-full" disabled={importType === "csv" && !selectedBank}>
+                <Upload size={16} className="mr-2" />
+                Importar Arquivo
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Filters */}
       <div className="bg-card rounded-xl border border-border p-4 shadow-[var(--shadow-card)]">
-        <div className="flex flex-col md:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-            <Input
-              placeholder="Buscar lançamentos..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-10 bg-background/50"
-            />
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col md:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+              <Input
+                placeholder="Buscar por descrição..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 h-10 bg-background/50"
+              />
+            </div>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-full md:w-44 h-10">
+                <Filter size={14} className="mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas Categorias</SelectItem>
+                {categories.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={costCenterFilter} onValueChange={setCostCenterFilter}>
+              <SelectTrigger className="w-full md:w-44 h-10">
+                <Filter size={14} className="mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Centro de Custo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos Centros</SelectItem>
+                {costCenters.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full md:w-36 h-10">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos Status</SelectItem>
+                <SelectItem value="conciliado">Conciliado</SelectItem>
+                <SelectItem value="pendente">Pendente</SelectItem>
+                <SelectItem value="revisão">Revisão</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-full md:w-48 h-10">
-              <Filter size={14} className="mr-2 text-muted-foreground" />
-              <SelectValue placeholder="Categoria" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todas Categorias</SelectItem>
-              {categories.map((c) => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={periodFilter} onValueChange={setPeriodFilter}>
-            <SelectTrigger className="w-full md:w-44 h-10">
-              <ArrowUpDown size={14} className="mr-2 text-muted-foreground" />
-              <SelectValue placeholder="Período" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="semanal">Semanal</SelectItem>
-              <SelectItem value="mensal">Mensal</SelectItem>
-              <SelectItem value="trimestral">Trimestral</SelectItem>
-              <SelectItem value="anual">Anual</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-full sm:w-48 justify-start text-left font-normal h-10", !dateFrom && "text-muted-foreground")}>
+                  <CalendarIcon size={14} className="mr-2" />
+                  {dateFrom ? format(dateFrom, "dd/MM/yyyy") : "Data início"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} locale={ptBR} className="p-3 pointer-events-auto" />
+              </PopoverContent>
+            </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-full sm:w-48 justify-start text-left font-normal h-10", !dateTo && "text-muted-foreground")}>
+                  <CalendarIcon size={14} className="mr-2" />
+                  {dateTo ? format(dateTo, "dd/MM/yyyy") : "Data fim"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={dateTo} onSelect={setDateTo} locale={ptBR} className="p-3 pointer-events-auto" />
+              </PopoverContent>
+            </Popover>
+            {(dateFrom || dateTo || categoryFilter !== "todas" || statusFilter !== "todos" || costCenterFilter !== "todos" || search) && (
+              <Button variant="ghost" size="sm" className="h-10" onClick={() => {
+                setSearch(""); setCategoryFilter("todas"); setStatusFilter("todos"); setCostCenterFilter("todos"); setDateFrom(undefined); setDateTo(undefined);
+              }}>
+                Limpar filtros
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -112,12 +279,29 @@ const Transactions = () => {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">Data</th>
-                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">Descrição</th>
-                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">Categoria</th>
-                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 hidden lg:table-cell">Centro de Custo</th>
-                <th className="text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">Valor</th>
-                <th className="text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">Status</th>
+                {[
+                  { field: "data" as SortField, label: "Data" },
+                  { field: "descricao" as SortField, label: "Descrição" },
+                  { field: "categoria" as SortField, label: "Categoria" },
+                  { field: "centroCusto" as SortField, label: "Centro de Custo", hideOnMobile: true },
+                  { field: "valor" as SortField, label: "Valor", align: "right" },
+                  { field: "status" as SortField, label: "Status", align: "center" },
+                ].map((col) => (
+                  <th
+                    key={col.field}
+                    onClick={() => handleSort(col.field)}
+                    className={cn(
+                      "text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 cursor-pointer hover:text-foreground transition-colors select-none",
+                      col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
+                      col.hideOnMobile && "hidden lg:table-cell"
+                    )}
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      {col.label}
+                      <SortIcon field={col.field} />
+                    </span>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
