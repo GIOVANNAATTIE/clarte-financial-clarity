@@ -22,7 +22,7 @@ const Login = () => {
       <div className="w-full max-w-md animate-fade-in">
         {/* Logo */}
         <div className="text-center mb-10">
-          <img src={logo} alt="Clarté Consultoria" className="h-32 mx-auto" />
+          <img src={logo} alt="Clarté Consultoria" className="h-44 mx-auto" />
         </div>
 
         {/* Card */}
