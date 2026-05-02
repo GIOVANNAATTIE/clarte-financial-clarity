@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { TrendingUp, TrendingDown, DollarSign, BarChart3, CalendarDays, Check, SlidersHorizontal } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -258,17 +258,7 @@ const Dashboard = () => {
           </div>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={cashFlowData}>
-                <defs>
-                  <linearGradient id="gradientIncome" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(152, 60%, 40%)" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(152, 60%, 40%)" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="gradientExpense" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(0, 65%, 55%)" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="hsl(0, 65%, 55%)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
+              <BarChart data={cashFlowData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(0, 0%, 90%)" />
                 <XAxis dataKey="mes" tick={{ fontSize: 12, fill: "hsl(0, 0%, 45%)" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "hsl(0, 0%, 45%)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
@@ -282,9 +272,9 @@ const Dashboard = () => {
                   formatter={(value: number) => formatCurrency(value)}
                 />
                 <Legend />
-                <Area type="monotone" dataKey="entradas" name="Entradas" stroke="hsl(152, 60%, 40%)" fill="url(#gradientIncome)" strokeWidth={2} />
-                <Area type="monotone" dataKey="saidas" name="Saídas" stroke="hsl(0, 65%, 55%)" fill="url(#gradientExpense)" strokeWidth={2} />
-              </AreaChart>
+                <Bar dataKey="entradas" name="Entradas" fill="hsl(152, 60%, 40%)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="saidas" name="Saídas" fill="hsl(0, 65%, 55%)" radius={[4, 4, 0, 0]} />
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
