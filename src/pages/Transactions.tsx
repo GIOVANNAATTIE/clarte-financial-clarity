@@ -203,7 +203,6 @@ const Transactions = () => {
             </Select>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 items-center">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Personalizado</span>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" className={cn("w-full sm:w-48 justify-start text-left font-normal h-10", !dateFrom && "text-muted-foreground")}>
