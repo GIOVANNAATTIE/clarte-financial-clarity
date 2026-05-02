@@ -43,24 +43,36 @@ const years = ["2024", "2025", "2026"];
 const currentDate = new Date();
 const formattedDate = format(currentDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
 
-const cashFlowData = [
-  { mes: "Jan", entradas: 48500, saidas: 32200 },
-  { mes: "Fev", entradas: 52300, saidas: 35800 },
-  { mes: "Mar", entradas: 49100, saidas: 41200 },
-  { mes: "Abr", entradas: 61200, saidas: 38900 },
-  { mes: "Mai", entradas: 55800, saidas: 42100 },
-  { mes: "Jun", entradas: 67400, saidas: 39700 },
+const allCashFlowData = [
+  { mes: "Jan", monthKey: "01", entradas: 48500, saidas: 32200 },
+  { mes: "Fev", monthKey: "02", entradas: 52300, saidas: 35800 },
+  { mes: "Mar", monthKey: "03", entradas: 49100, saidas: 41200 },
+  { mes: "Abr", monthKey: "04", entradas: 61200, saidas: 38900 },
+  { mes: "Mai", monthKey: "05", entradas: 55800, saidas: 42100 },
+  { mes: "Jun", monthKey: "06", entradas: 67400, saidas: 39700 },
+  { mes: "Jul", monthKey: "07", entradas: 58200, saidas: 37500 },
+  { mes: "Ago", monthKey: "08", entradas: 63100, saidas: 40800 },
+  { mes: "Set", monthKey: "09", entradas: 59800, saidas: 43200 },
+  { mes: "Out", monthKey: "10", entradas: 71200, saidas: 45100 },
+  { mes: "Nov", monthKey: "11", entradas: 68500, saidas: 41900 },
+  { mes: "Dez", monthKey: "12", entradas: 74300, saidas: 48200 },
 ];
 
-const dreData = [
-  { label: "Receita Bruta", value: 334300, type: "income" as const },
-  { label: "(-) Deduções", value: -18200, type: "expense" as const },
-  { label: "Receita Líquida", value: 316100, type: "income" as const },
-  { label: "(-) CMV", value: -128400, type: "expense" as const },
-  { label: "Lucro Bruto", value: 187700, type: "income" as const },
-  { label: "(-) Despesas Operacionais", value: -95800, type: "expense" as const },
-  { label: "Resultado Operacional", value: 91900, type: "income" as const },
-];
+// DRE mensal (valores por mês para permitir filtro)
+const monthlyDreData: Record<string, { receitaBruta: number; deducoes: number; cmv: number; despesasOp: number }> = {
+  "01": { receitaBruta: 48500, deducoes: 2600, cmv: 18700, despesasOp: 13900 },
+  "02": { receitaBruta: 52300, deducoes: 2800, cmv: 20100, despesasOp: 15100 },
+  "03": { receitaBruta: 49100, deducoes: 2700, cmv: 19200, despesasOp: 14200 },
+  "04": { receitaBruta: 61200, deducoes: 3300, cmv: 23500, despesasOp: 17600 },
+  "05": { receitaBruta: 55800, deducoes: 3000, cmv: 21400, despesasOp: 16000 },
+  "06": { receitaBruta: 67400, deducoes: 3600, cmv: 25900, despesasOp: 19300 },
+  "07": { receitaBruta: 58200, deducoes: 3100, cmv: 22400, despesasOp: 16700 },
+  "08": { receitaBruta: 63100, deducoes: 3400, cmv: 24300, despesasOp: 18100 },
+  "09": { receitaBruta: 59800, deducoes: 3200, cmv: 23000, despesasOp: 17200 },
+  "10": { receitaBruta: 71200, deducoes: 3800, cmv: 27400, despesasOp: 20400 },
+  "11": { receitaBruta: 68500, deducoes: 3700, cmv: 26300, despesasOp: 19600 },
+  "12": { receitaBruta: 74300, deducoes: 4000, cmv: 28600, despesasOp: 21300 },
+};
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -100,8 +112,66 @@ const Dashboard = () => {
   const formatShortDate = (date: Date) =>
     date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-  const totalEntradas = cashFlowData.reduce((s, d) => s + d.entradas, 0);
-  const totalSaidas = cashFlowData.reduce((s, d) => s + d.saidas, 0);
+  // Filtrar dados com base nos filtros selecionados
+  const filteredCashFlow = (() => {
+    if (filterMode === "custom" && customDateFrom && customDateTo) {
+      const fromMonth = customDateFrom.getMonth() + 1;
+      const toMonth = customDateTo.getMonth() + 1;
+      return allCashFlowData.filter((d) => {
+        const m = parseInt(d.monthKey);
+        return m >= fromMonth && m <= toMonth;
+      });
+    }
+    if (selectedMonths.length === 0 || selectedMonths.length === 12) return allCashFlowData;
+    return allCashFlowData.filter((d) => selectedMonths.includes(d.monthKey));
+  })();
+
+  // DRE filtrado
+  const filteredDre = (() => {
+    const activeMonths = (() => {
+      if (filterMode === "custom" && customDateFrom && customDateTo) {
+        const fromMonth = customDateFrom.getMonth() + 1;
+        const toMonth = customDateTo.getMonth() + 1;
+        return Object.keys(monthlyDreData).filter((k) => {
+          const m = parseInt(k);
+          return m >= fromMonth && m <= toMonth;
+        });
+      }
+      if (selectedMonths.length === 0 || selectedMonths.length === 12) return Object.keys(monthlyDreData);
+      return selectedMonths;
+    })();
+
+    const totals = activeMonths.reduce(
+      (acc, key) => {
+        const d = monthlyDreData[key];
+        if (!d) return acc;
+        return {
+          receitaBruta: acc.receitaBruta + d.receitaBruta,
+          deducoes: acc.deducoes + d.deducoes,
+          cmv: acc.cmv + d.cmv,
+          despesasOp: acc.despesasOp + d.despesasOp,
+        };
+      },
+      { receitaBruta: 0, deducoes: 0, cmv: 0, despesasOp: 0 }
+    );
+
+    const receitaLiquida = totals.receitaBruta - totals.deducoes;
+    const lucroBruto = receitaLiquida - totals.cmv;
+    const resultadoOp = lucroBruto - totals.despesasOp;
+
+    return [
+      { label: "Receita Bruta", value: totals.receitaBruta, type: "income" as const },
+      { label: "(-) Deduções", value: -totals.deducoes, type: "expense" as const },
+      { label: "Receita Líquida", value: receitaLiquida, type: "income" as const },
+      { label: "(-) CMV", value: -totals.cmv, type: "expense" as const },
+      { label: "Lucro Bruto", value: lucroBruto, type: "income" as const },
+      { label: "(-) Despesas Operacionais", value: -totals.despesasOp, type: "expense" as const },
+      { label: "Resultado Operacional", value: resultadoOp, type: resultadoOp >= 0 ? "income" as const : "expense" as const },
+    ];
+  })();
+
+  const totalEntradas = filteredCashFlow.reduce((s, d) => s + d.entradas, 0);
+  const totalSaidas = filteredCashFlow.reduce((s, d) => s + d.saidas, 0);
   const saldo = totalEntradas - totalSaidas;
 
   return (
@@ -258,7 +328,7 @@ const Dashboard = () => {
           </div>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={cashFlowData}>
+              <BarChart data={filteredCashFlow}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(0, 0%, 90%)" />
                 <XAxis dataKey="mes" tick={{ fontSize: 12, fill: "hsl(0, 0%, 45%)" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "hsl(0, 0%, 45%)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
@@ -286,11 +356,11 @@ const Dashboard = () => {
             <h2 className="font-heading font-semibold text-foreground">DRE Simplificado</h2>
           </div>
           <div className="space-y-3">
-            {dreData.map((item, i) => (
+            {filteredDre.map((item, i) => (
               <div
                 key={i}
                 className={`flex items-center justify-between py-2 ${
-                  i < dreData.length - 1 ? "border-b border-border/50" : ""
+                  i < filteredDre.length - 1 ? "border-b border-border/50" : ""
                 } ${item.label.includes("Resultado") || item.label.includes("Lucro") ? "font-semibold" : ""}`}
               >
                 <span className="text-sm text-foreground">{item.label}</span>
