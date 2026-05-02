@@ -34,6 +34,68 @@ const years = ["2024", "2025", "2026"];
 const currentDate = new Date();
 const formattedDate = format(currentDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
 
+const cashFlowData = [
+  { mes: "Jan", entradas: 48500, saidas: 32200 },
+  { mes: "Fev", entradas: 52300, saidas: 35800 },
+  { mes: "Mar", entradas: 49100, saidas: 41200 },
+  { mes: "Abr", entradas: 61200, saidas: 38900 },
+  { mes: "Mai", entradas: 55800, saidas: 42100 },
+  { mes: "Jun", entradas: 67400, saidas: 39700 },
+];
+
+const dreData = [
+  { label: "Receita Bruta", value: 334300, type: "income" as const },
+  { label: "(-) Deduções", value: -18200, type: "expense" as const },
+  { label: "Receita Líquida", value: 316100, type: "income" as const },
+  { label: "(-) CMV", value: -128400, type: "expense" as const },
+  { label: "Lucro Bruto", value: 187700, type: "income" as const },
+  { label: "(-) Despesas Operacionais", value: -95800, type: "expense" as const },
+  { label: "Resultado Operacional", value: 91900, type: "income" as const },
+];
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+
+const Dashboard = () => {
+  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear().toString());
+  const [selectedMonth, setSelectedMonth] = useState("all");
+
+  const totalEntradas = cashFlowData.reduce((s, d) => s + d.entradas, 0);
+  const totalSaidas = cashFlowData.reduce((s, d) => s + d.saidas, 0);
+  const saldo = totalEntradas - totalSaidas;
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 className="font-heading text-2xl font-bold text-foreground">Dashboard</h1>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Select value={selectedYear} onValueChange={setSelectedYear}>
+            <SelectTrigger className="w-[120px] h-9 text-sm">
+              <SelectValue placeholder="Ano" />
+            </SelectTrigger>
+            <SelectContent>
+              {years.map((y) => (
+                <SelectItem key={y} value={y}>{y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+            <SelectTrigger className="w-[160px] h-9 text-sm">
+              <SelectValue placeholder="Mês" />
+            </SelectTrigger>
+            <SelectContent>
+              {months.map((m) => (
+                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-3 py-2 rounded-lg">
+            <CalendarDays size={14} />
+            <span>{formattedDate}</span>
+          </div>
+        </div>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <KpiCard
