@@ -187,21 +187,34 @@ const Insights = () => {
   const formatShortDate = (date: Date) =>
     date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
+  // Only show data after clicking "Atualizar"
+  const activeInsights = isLoaded ? insights : [];
+
   // Filter by category
-  let filtered = categoryFilter === "Todos" ? insights : insights.filter((i) => i.category === categoryFilter);
+  let filtered = categoryFilter === "Todos" ? activeInsights : activeInsights.filter((i) => i.category === categoryFilter);
 
   // Filter by severity
   if (severityFilter !== "all") {
     filtered = filtered.filter((i) => i.severity === severityFilter);
   }
 
-  const totalCount = insights.length;
-  const criticalCount = insights.filter((i) => i.severity === "critical").length;
-  const warningCount = insights.filter((i) => i.severity === "warning").length;
-  const positiveCount = insights.filter((i) => i.severity === "positive").length;
+  const totalCount = activeInsights.length;
+  const criticalCount = activeInsights.filter((i) => i.severity === "critical").length;
+  const warningCount = activeInsights.filter((i) => i.severity === "warning").length;
+  const positiveCount = activeInsights.filter((i) => i.severity === "positive").length;
 
   const handleSeverityCardClick = (severity: Severity | "all") => {
     setSeverityFilter((prev) => (prev === severity ? "all" : severity));
+  };
+
+  const handleRefresh = () => {
+    setIsLoading(true);
+    // Simula chamada de IA (futuramente será a chamada real)
+    setTimeout(() => {
+      setIsLoaded(true);
+      setIsLoading(false);
+      setLastUpdated(new Date());
+    }, 2000);
   };
 
   return (
