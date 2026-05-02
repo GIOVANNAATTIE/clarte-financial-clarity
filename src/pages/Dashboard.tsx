@@ -112,8 +112,66 @@ const Dashboard = () => {
   const formatShortDate = (date: Date) =>
     date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-  const totalEntradas = cashFlowData.reduce((s, d) => s + d.entradas, 0);
-  const totalSaidas = cashFlowData.reduce((s, d) => s + d.saidas, 0);
+  // Filtrar dados com base nos filtros selecionados
+  const filteredCashFlow = (() => {
+    if (filterMode === "custom" && customDateFrom && customDateTo) {
+      const fromMonth = customDateFrom.getMonth() + 1;
+      const toMonth = customDateTo.getMonth() + 1;
+      return allCashFlowData.filter((d) => {
+        const m = parseInt(d.monthKey);
+        return m >= fromMonth && m <= toMonth;
+      });
+    }
+    if (selectedMonths.length === 0 || selectedMonths.length === 12) return allCashFlowData;
+    return allCashFlowData.filter((d) => selectedMonths.includes(d.monthKey));
+  })();
+
+  // DRE filtrado
+  const filteredDre = (() => {
+    const activeMonths = (() => {
+      if (filterMode === "custom" && customDateFrom && customDateTo) {
+        const fromMonth = customDateFrom.getMonth() + 1;
+        const toMonth = customDateTo.getMonth() + 1;
+        return Object.keys(monthlyDreData).filter((k) => {
+          const m = parseInt(k);
+          return m >= fromMonth && m <= toMonth;
+        });
+      }
+      if (selectedMonths.length === 0 || selectedMonths.length === 12) return Object.keys(monthlyDreData);
+      return selectedMonths;
+    })();
+
+    const totals = activeMonths.reduce(
+      (acc, key) => {
+        const d = monthlyDreData[key];
+        if (!d) return acc;
+        return {
+          receitaBruta: acc.receitaBruta + d.receitaBruta,
+          deducoes: acc.deducoes + d.deducoes,
+          cmv: acc.cmv + d.cmv,
+          despesasOp: acc.despesasOp + d.despesasOp,
+        };
+      },
+      { receitaBruta: 0, deducoes: 0, cmv: 0, despesasOp: 0 }
+    );
+
+    const receitaLiquida = totals.receitaBruta - totals.deducoes;
+    const lucroBruto = receitaLiquida - totals.cmv;
+    const resultadoOp = lucroBruto - totals.despesasOp;
+
+    return [
+      { label: "Receita Bruta", value: totals.receitaBruta, type: "income" as const },
+      { label: "(-) Deduções", value: -totals.deducoes, type: "expense" as const },
+      { label: "Receita Líquida", value: receitaLiquida, type: "income" as const },
+      { label: "(-) CMV", value: -totals.cmv, type: "expense" as const },
+      { label: "Lucro Bruto", value: lucroBruto, type: "income" as const },
+      { label: "(-) Despesas Operacionais", value: -totals.despesasOp, type: "expense" as const },
+      { label: "Resultado Operacional", value: resultadoOp, type: resultadoOp >= 0 ? "income" as const : "expense" as const },
+    ];
+  })();
+
+  const totalEntradas = filteredCashFlow.reduce((s, d) => s + d.entradas, 0);
+  const totalSaidas = filteredCashFlow.reduce((s, d) => s + d.saidas, 0);
   const saldo = totalEntradas - totalSaidas;
 
   return (
