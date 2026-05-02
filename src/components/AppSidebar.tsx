@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, ArrowLeftRight, FileText, LogOut, Menu, X, Building2, ChevronDown, Brain, Receipt, Settings } from "lucide-react";
+import { LayoutDashboard, ArrowLeftRight, FileText, LogOut, Menu, X, Building2, ChevronDown, Brain, Receipt, Settings, Users, Tag, CircleDollarSign } from "lucide-react";
 import { useState } from "react";
 import { useClient } from "@/contexts/ClientContext";
 import logo from "@/assets/logo.png";
@@ -9,6 +9,9 @@ const navItems = [
   { to: "/insights", label: "Inteligência IA", icon: Brain },
   { to: "/transactions", label: "Movimentação", icon: ArrowLeftRight },
   { to: "/lancamentos", label: "Lançamentos", icon: Receipt },
+  { to: "/clientes-fornecedores", label: "Clientes / Fornecedores", icon: Users },
+  { to: "/categorias", label: "Categorias", icon: Tag },
+  { to: "/centros-custo", label: "Centros de Custo", icon: CircleDollarSign },
   { to: "/reports", label: "Relatórios", icon: FileText },
   { to: "/settings", label: "Configurações", icon: Settings },
 ];
