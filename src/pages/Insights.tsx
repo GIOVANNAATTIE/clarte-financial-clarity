@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   Brain, TrendingUp, TrendingDown, AlertTriangle, RefreshCw, Users, ShoppingCart,
-  ArrowUpRight, ArrowDownRight, Minus, CalendarDays,
+  ArrowUpRight, ArrowDownRight, Minus, CalendarDays, Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
