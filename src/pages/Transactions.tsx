@@ -98,7 +98,7 @@ const Transactions = () => {
     return sortDir === "asc" ? <ArrowUp size={12} className="text-gold" /> : <ArrowDown size={12} className="text-gold" />;
   };
 
-  const filtered = mockTransactions
+  const filtered = transactions
     .filter((t) => {
       const matchSearch = t.descricao.toLowerCase().includes(search.toLowerCase());
       const matchCategory = categoryFilter === "todas" || t.categoria === categoryFilter;
@@ -120,8 +120,33 @@ const Transactions = () => {
       return sortDir === "asc" ? cmp : -cmp;
     });
 
-  const categories = [...new Set(mockTransactions.map((t) => t.categoria))];
-  const costCenters = [...new Set(mockTransactions.map((t) => t.centroCusto))];
+  const categories = [...new Set(transactions.map((t) => t.categoria))];
+  const costCenters = [...new Set(transactions.map((t) => t.centroCusto))];
+
+  const handleEdit = (t: Transaction) => {
+    setEditTransaction({ ...t });
+    setEditOpen(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editTransaction) return;
+    setTransactions(prev => prev.map(t => t.id === editTransaction.id ? editTransaction : t));
+    setEditOpen(false);
+    setEditTransaction(null);
+  };
+
+  const handleDelete = (id: number) => {
+    setDeleteId(id);
+    setDeleteOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (deleteId !== null) {
+      setTransactions(prev => prev.filter(t => t.id !== deleteId));
+    }
+    setDeleteOpen(false);
+    setDeleteId(null);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
