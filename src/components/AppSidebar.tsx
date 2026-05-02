@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, ArrowLeftRight, FileText, LogOut, Menu, X, Building2, ChevronDown, Brain, Receipt, Settings, Users, Layers } from "lucide-react";
+import { LayoutDashboard, ArrowLeftRight, FileText, LogOut, Menu, X, Building2, ChevronDown, Brain, Receipt, Settings, Users, Layers, Wallet, BarChart3, ClipboardList, UserCircle } from "lucide-react";
 import { useState } from "react";
 import { useClient } from "@/contexts/ClientContext";
 import logo from "@/assets/logo.png";
@@ -9,10 +9,17 @@ const navItems = [
   { to: "/insights", label: "Inteligência IA", icon: Brain },
   { to: "/transactions", label: "Movimentação", icon: ArrowLeftRight },
   { to: "/lancamentos", label: "Lançamentos", icon: Receipt },
+  { to: "/fluxo-caixa", label: "Fluxo de Caixa", icon: Wallet },
+  { to: "/dre", label: "DRE", icon: BarChart3 },
   { to: "/clientes-fornecedores", label: "Clientes / Fornecedores", icon: Users },
   { to: "/classificacoes", label: "Classificações", icon: Layers },
   { to: "/reports", label: "Relatórios", icon: FileText },
   { to: "/settings", label: "Configurações", icon: Settings },
+];
+
+const bottomItems = [
+  { to: "/trilha-auditoria", label: "Trilha de Auditoria", icon: ClipboardList },
+  { to: "/meu-perfil", label: "Meu Perfil", icon: UserCircle },
 ];
 
 const AppSidebar = () => {
@@ -49,7 +56,7 @@ const AppSidebar = () => {
         </div>
       )}
 
-      <nav className="flex-1 px-3 space-y-1">
+      <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
           const isActive = location.pathname === item.to;
           return (
@@ -71,7 +78,26 @@ const AppSidebar = () => {
         })}
       </nav>
 
-      <div className="p-3 border-t border-sidebar-border">
+      <div className="p-3 border-t border-sidebar-border space-y-1">
+        {bottomItems.map((item) => {
+          const isActive = location.pathname === item.to;
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              onClick={() => setMobileOpen(false)}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
+                isActive
+                  ? "bg-sidebar-accent text-gold"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+              }`}
+            >
+              <item.icon size={18} />
+              {item.label}
+              {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-gold" />}
+            </Link>
+          );
+        })}
         <Link
           to="/"
           className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-sidebar-foreground/70 hover:text-destructive transition-colors"
