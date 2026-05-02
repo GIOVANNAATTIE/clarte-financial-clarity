@@ -8,11 +8,11 @@ export type Client = {
 };
 
 const mockClients: Client[] = [
-  { id: "1", name: "Tech Solutions Ltda", cnpj: "12.345.678/0001-90", segment: "Tecnologia" },
-  { id: "2", name: "Construtora Horizonte", cnpj: "23.456.789/0001-01", segment: "Construção Civil" },
-  { id: "3", name: "Grupo Alimentar SA", cnpj: "34.567.890/0001-12", segment: "Alimentos" },
-  { id: "4", name: "Clínica Bem Estar", cnpj: "45.678.901/0001-23", segment: "Saúde" },
-  { id: "5", name: "Auto Peças Nacional", cnpj: "56.789.012/0001-34", segment: "Automotivo" },
+  { id: "1", name: "Grupo TDL", cnpj: "12.345.678/0001-90", segment: "Empresarial" },
+  { id: "2", name: "MKPlace", cnpj: "23.456.789/0001-01", segment: "Marketplace" },
+  { id: "3", name: "Tech Solutions Ltda", cnpj: "34.567.890/0001-12", segment: "Tecnologia" },
+  { id: "4", name: "Construtora Horizonte", cnpj: "45.678.901/0001-23", segment: "Construção Civil" },
+  { id: "5", name: "Clínica Bem Estar", cnpj: "56.789.012/0001-34", segment: "Saúde" },
 ];
 
 type ClientContextType = {
