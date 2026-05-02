@@ -356,11 +356,11 @@ const Dashboard = () => {
             <h2 className="font-heading font-semibold text-foreground">DRE Simplificado</h2>
           </div>
           <div className="space-y-3">
-            {dreData.map((item, i) => (
+            {filteredDre.map((item, i) => (
               <div
                 key={i}
                 className={`flex items-center justify-between py-2 ${
-                  i < dreData.length - 1 ? "border-b border-border/50" : ""
+                  i < filteredDre.length - 1 ? "border-b border-border/50" : ""
                 } ${item.label.includes("Resultado") || item.label.includes("Lucro") ? "font-semibold" : ""}`}
               >
                 <span className="text-sm text-foreground">{item.label}</span>
