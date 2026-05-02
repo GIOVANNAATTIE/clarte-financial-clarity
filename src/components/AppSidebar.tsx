@@ -25,7 +25,7 @@ const AppSidebar = () => {
   const sidebarContent = (
     <>
       <div className="p-5 pb-4 flex justify-center">
-        <img src={logo} alt="Clarté" className="h-16 object-contain brightness-0 invert opacity-90" />
+        <img src={logo} alt="Clarté" className="h-24 object-contain brightness-0 invert opacity-90" />
       </div>
 
       {/* Selected Client */}
