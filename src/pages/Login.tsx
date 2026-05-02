@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,9 +22,7 @@ const Login = () => {
       <div className="w-full max-w-md animate-fade-in">
         {/* Logo */}
         <div className="text-center mb-10">
-          <h1 className="font-heading text-4xl font-bold text-primary tracking-tight">Clarté</h1>
-          <div className="mt-2 h-0.5 w-12 bg-gold mx-auto rounded-full" />
-          <p className="mt-3 text-muted-foreground text-sm">Gestão Financeira Inteligente</p>
+          <img src={logo} alt="Clarté Consultoria" className="h-32 mx-auto" />
         </div>
 
         {/* Card */}
