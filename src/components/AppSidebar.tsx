@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, ArrowLeftRight, FileText, LogOut, Menu, X, Building2, ChevronDown, Brain } from "lucide-react";
+import { LayoutDashboard, ArrowLeftRight, FileText, LogOut, Menu, X, Building2, ChevronDown, Brain, Receipt, Settings } from "lucide-react";
 import { useState } from "react";
 import { useClient } from "@/contexts/ClientContext";
 import logo from "@/assets/logo.png";
@@ -8,7 +8,9 @@ const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/insights", label: "Inteligência IA", icon: Brain },
   { to: "/transactions", label: "Movimentação", icon: ArrowLeftRight },
+  { to: "/lancamentos", label: "Lançamentos", icon: Receipt },
   { to: "/reports", label: "Relatórios", icon: FileText },
+  { to: "/settings", label: "Configurações", icon: Settings },
 ];
 
 const AppSidebar = () => {
