@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import SelectClient from "./pages/SelectClient";
 import Dashboard from "./pages/Dashboard";
+import Insights from "./pages/Insights";
 import Transactions from "./pages/Transactions";
 import Reports from "./pages/Reports";
 import AppLayout from "./components/AppLayout";
@@ -27,7 +28,8 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/select-client" element={<SelectClient />} />
             <Route element={<AppLayout />}>
-              <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/insights" element={<Insights />} />
               <Route path="/transactions" element={<Transactions />} />
               <Route path="/reports" element={<Reports />} />
             </Route>
