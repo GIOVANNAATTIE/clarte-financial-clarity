@@ -311,14 +311,7 @@ const Transactions = () => {
                     {new Date(t.data).toLocaleDateString("pt-BR")}
                   </td>
                   <td className="px-5 py-3.5 text-sm text-foreground">
-                    <div className="flex items-center gap-2">
-                      {t.descricao}
-                      {t.aiCategorized && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider bg-gold/15 text-gold px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                          <Brain size={10} /> IA
-                        </span>
-                      )}
-                    </div>
+                    {t.descricao}
                   </td>
                   <td className="px-5 py-3.5 text-sm text-muted-foreground">{t.categoria}</td>
                   <td className="px-5 py-3.5 text-sm text-muted-foreground hidden lg:table-cell">{t.centroCusto}</td>
@@ -354,10 +347,6 @@ const Transactions = () => {
         </div>
         <div className="px-5 py-3 border-t border-border bg-muted/20 flex items-center justify-between text-xs text-muted-foreground">
           <span>{filtered.length} lançamentos encontrados</span>
-          <span className="flex items-center gap-1">
-            <Brain size={12} className="text-gold" />
-            {transactions.filter((t) => t.aiCategorized).length} categorizados por IA
-          </span>
         </div>
       </div>
 
