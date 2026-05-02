@@ -217,6 +217,7 @@ const Transactions = () => {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Filters */}
