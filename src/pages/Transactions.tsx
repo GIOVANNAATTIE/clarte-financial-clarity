@@ -32,6 +32,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { initialClientesFornecedores, initialCategorias, initialCentrosCusto } from "@/data/cadastros";
 
 type Transaction = {
   id: number;
@@ -377,26 +378,47 @@ const Transactions = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Descrição</Label>
-                <Input
+                <Label>Descrição (Cliente/Fornecedor)</Label>
+                <Select
                   value={editTransaction.descricao}
-                  onChange={(e) => setEditTransaction({ ...editTransaction, descricao: e.target.value })}
-                />
+                  onValueChange={(v) => setEditTransaction({ ...editTransaction, descricao: v })}
+                >
+                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <SelectContent>
+                    {initialClientesFornecedores.map(cf => (
+                      <SelectItem key={cf.id} value={cf.nome}>{cf.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Categoria</Label>
-                  <Input
+                  <Select
                     value={editTransaction.categoria}
-                    onChange={(e) => setEditTransaction({ ...editTransaction, categoria: e.target.value })}
-                  />
+                    onValueChange={(v) => setEditTransaction({ ...editTransaction, categoria: v })}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                    <SelectContent>
+                      {initialCategorias.map(c => (
+                        <SelectItem key={c.id} value={c.nome}>{c.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Centro de Custo</Label>
-                  <Input
+                  <Select
                     value={editTransaction.centroCusto}
-                    onChange={(e) => setEditTransaction({ ...editTransaction, centroCusto: e.target.value })}
-                  />
+                    onValueChange={(v) => setEditTransaction({ ...editTransaction, centroCusto: v })}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                    <SelectContent>
+                      {initialCentrosCusto.map(cc => (
+                        <SelectItem key={cc.id} value={cc.nome}>{cc.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
