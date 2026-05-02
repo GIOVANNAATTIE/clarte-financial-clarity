@@ -12,8 +12,7 @@ import Insights from "./pages/Insights";
 import Transactions from "./pages/Transactions";
 import Lancamentos from "./pages/Lancamentos";
 import ClientesFornecedores from "./pages/ClientesFornecedores";
-import Categorias from "./pages/Categorias";
-import CentrosCusto from "./pages/CentrosCusto";
+import Classificacoes from "./pages/Classificacoes";
 import Reports from "./pages/Reports";
 import ClientSettings from "./pages/ClientSettings";
 import AppLayout from "./components/AppLayout";
@@ -38,8 +37,7 @@ const App = () => (
               <Route path="/transactions" element={<Transactions />} />
               <Route path="/lancamentos" element={<Lancamentos />} />
               <Route path="/clientes-fornecedores" element={<ClientesFornecedores />} />
-              <Route path="/categorias" element={<Categorias />} />
-              <Route path="/centros-custo" element={<CentrosCusto />} />
+              <Route path="/classificacoes" element={<Classificacoes />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/settings" element={<ClientSettings />} />
             </Route>
