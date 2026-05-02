@@ -21,8 +21,8 @@ const Login = () => {
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-md animate-fade-in">
         {/* Logo */}
-        <div className="text-center mb-10">
-          <img src={logo} alt="Clarté Consultoria" className="h-44 mx-auto" />
+        <div className="text-center mb-8 mt-4 flex justify-center">
+          <img src={logo} alt="Clarté Consultoria" className="h-44 object-contain" />
         </div>
 
         {/* Card */}
