@@ -413,7 +413,21 @@ const Insights = () => {
 
       {/* Insights List */}
       <div className="space-y-3">
-        {filtered.length === 0 && (
+        {!isLoaded && !isLoading && (
+          <div className="text-center py-16 bg-card rounded-xl border border-border shadow-[var(--shadow-card)]">
+            <Brain className="mx-auto text-muted-foreground/30 mb-4" size={48} />
+            <p className="text-muted-foreground font-medium">Clique em "Atualizar Análise" para gerar os insights</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">A análise será feita com base nos filtros selecionados</p>
+          </div>
+        )}
+        {isLoading && (
+          <div className="text-center py-16 bg-card rounded-xl border border-border shadow-[var(--shadow-card)]">
+            <Loader2 className="mx-auto text-gold animate-spin mb-4" size={48} />
+            <p className="text-muted-foreground font-medium">Analisando dados financeiros...</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">A IA está processando as informações</p>
+          </div>
+        )}
+        {isLoaded && !isLoading && filtered.length === 0 && (
           <div className="text-center py-12 text-muted-foreground text-sm">
             Nenhum alerta encontrado para os filtros selecionados.
           </div>
