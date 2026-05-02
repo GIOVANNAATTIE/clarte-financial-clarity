@@ -10,7 +10,9 @@ import SelectClient from "./pages/SelectClient";
 import Dashboard from "./pages/Dashboard";
 import Insights from "./pages/Insights";
 import Transactions from "./pages/Transactions";
+import Lancamentos from "./pages/Lancamentos";
 import Reports from "./pages/Reports";
+import ClientSettings from "./pages/ClientSettings";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 
