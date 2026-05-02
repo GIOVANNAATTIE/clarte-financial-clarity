@@ -21,7 +21,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Upload, Search, Brain, Filter, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, FileText, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Upload, Search, Brain, Filter, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, FileText, MoreHorizontal, Pencil, Trash2, Download } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
