@@ -135,53 +135,21 @@ const Transactions = () => {
               <DialogTitle>Importar Extrato</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-2">
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setImportType("ofx")}
-                  className={cn(
-                    "flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all",
-                    importType === "ofx" ? "border-gold bg-gold/5" : "border-border hover:border-gold/50"
-                  )}
-                >
-                  <FileText size={28} className={importType === "ofx" ? "text-gold" : "text-muted-foreground"} />
-                  <span className="text-sm font-medium">OFX</span>
-                  <span className="text-[10px] text-muted-foreground">Formato padrão bancário</span>
-                </button>
-                <button
-                  onClick={() => setImportType("csv")}
-                  className={cn(
-                    "flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all",
-                    importType === "csv" ? "border-gold bg-gold/5" : "border-border hover:border-gold/50"
-                  )}
-                >
-                  <FileSpreadsheet size={28} className={importType === "csv" ? "text-gold" : "text-muted-foreground"} />
-                  <span className="text-sm font-medium">CSV Personalizado</span>
-                  <span className="text-[10px] text-muted-foreground">Layout por banco</span>
-                </button>
+              <div className="flex items-center gap-3 p-4 rounded-xl border-2 border-gold bg-gold/5">
+                <FileText size={28} className="text-gold" />
+                <div>
+                  <span className="text-sm font-medium">Arquivo OFX</span>
+                  <p className="text-[10px] text-muted-foreground">Formato padrão bancário</p>
+                </div>
               </div>
-
-              {importType === "csv" && (
-                <Select value={selectedBank} onValueChange={setSelectedBank}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o banco" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {banks.map((b) => (
-                      <SelectItem key={b} value={b}>{b}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
 
               <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-gold/50 transition-colors cursor-pointer">
                 <Upload size={32} className="mx-auto text-muted-foreground mb-2" />
                 <p className="text-sm font-medium text-foreground">Arraste o arquivo ou clique para selecionar</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {importType === "ofx" ? "Aceita arquivos .ofx" : `Aceita arquivos .csv${selectedBank ? ` — Layout ${selectedBank}` : ""}`}
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">Aceita arquivos .ofx</p>
               </div>
 
-              <Button className="w-full" disabled={importType === "csv" && !selectedBank}>
+              <Button className="w-full">
                 <Upload size={16} className="mr-2" />
                 Importar Arquivo
               </Button>
@@ -239,7 +207,8 @@ const Transactions = () => {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 items-center">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Personalizado</span>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" className={cn("w-full sm:w-48 justify-start text-left font-normal h-10", !dateFrom && "text-muted-foreground")}>
@@ -284,15 +253,14 @@ const Transactions = () => {
                   { field: "descricao" as SortField, label: "Descrição" },
                   { field: "categoria" as SortField, label: "Categoria" },
                   { field: "centroCusto" as SortField, label: "Centro de Custo", hideOnMobile: true },
-                  { field: "valor" as SortField, label: "Valor", align: "right" },
-                  { field: "status" as SortField, label: "Status", align: "center" },
+                  { field: "valor" as SortField, label: "Valor" },
+                  { field: "status" as SortField, label: "Status" },
                 ].map((col) => (
                   <th
                     key={col.field}
                     onClick={() => handleSort(col.field)}
                     className={cn(
-                      "text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 cursor-pointer hover:text-foreground transition-colors select-none",
-                      col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
+                      "text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 cursor-pointer hover:text-foreground transition-colors select-none text-center",
                       col.hideOnMobile && "hidden lg:table-cell"
                     )}
                   >
