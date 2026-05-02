@@ -1,41 +1,38 @@
+import { useState } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
-import { TrendingUp, TrendingDown, DollarSign, BarChart3 } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, BarChart3, CalendarDays } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
-const cashFlowData = [
-  { mes: "Jan", entradas: 48500, saidas: 32200 },
-  { mes: "Fev", entradas: 52300, saidas: 35800 },
-  { mes: "Mar", entradas: 49100, saidas: 41200 },
-  { mes: "Abr", entradas: 61200, saidas: 38900 },
-  { mes: "Mai", entradas: 55800, saidas: 42100 },
-  { mes: "Jun", entradas: 67400, saidas: 39700 },
+const months = [
+  { value: "all", label: "Todos os meses" },
+  { value: "01", label: "Janeiro" },
+  { value: "02", label: "Fevereiro" },
+  { value: "03", label: "Março" },
+  { value: "04", label: "Abril" },
+  { value: "05", label: "Maio" },
+  { value: "06", label: "Junho" },
+  { value: "07", label: "Julho" },
+  { value: "08", label: "Agosto" },
+  { value: "09", label: "Setembro" },
+  { value: "10", label: "Outubro" },
+  { value: "11", label: "Novembro" },
+  { value: "12", label: "Dezembro" },
 ];
 
-const dreData = [
-  { label: "Receita Bruta", value: 334300, type: "income" as const },
-  { label: "(-) Deduções", value: -18200, type: "expense" as const },
-  { label: "Receita Líquida", value: 316100, type: "income" as const },
-  { label: "(-) CMV", value: -128400, type: "expense" as const },
-  { label: "Lucro Bruto", value: 187700, type: "income" as const },
-  { label: "(-) Despesas Operacionais", value: -95800, type: "expense" as const },
-  { label: "Resultado Operacional", value: 91900, type: "income" as const },
-];
+const years = ["2024", "2025", "2026"];
 
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
-
-const Dashboard = () => {
-  const totalEntradas = cashFlowData.reduce((s, d) => s + d.entradas, 0);
-  const totalSaidas = cashFlowData.reduce((s, d) => s + d.saidas, 0);
-  const saldo = totalEntradas - totalSaidas;
-
-  return (
-    <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="font-heading text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Visão geral das suas finanças</p>
-      </div>
+const currentDate = new Date();
+const formattedDate = format(currentDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
