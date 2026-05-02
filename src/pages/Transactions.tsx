@@ -314,9 +314,10 @@ const Transactions = () => {
                   { field: "descricao" as SortField, label: "Descrição" },
                   { field: "categoria" as SortField, label: "Categoria" },
                   { field: "centroCusto" as SortField, label: "Centro de Custo", hideOnMobile: true },
+                  { field: "valor" as SortField, label: "Tipo" },
                   { field: "valor" as SortField, label: "Valor" },
                   { field: "status" as SortField, label: "Status" },
-                ].map((col) => (
+                ].map((col, idx) => (
                   <th
                     key={col.field}
                     onClick={() => handleSort(col.field)}
