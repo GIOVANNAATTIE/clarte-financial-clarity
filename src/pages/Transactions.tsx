@@ -21,7 +21,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Upload, Search, Brain, Filter, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, FileText } from "lucide-react";
+import { Upload, Search, Brain, Filter, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, FileText, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -71,6 +78,11 @@ const Transactions = () => {
   const [sortField, setSortField] = useState<SortField>("data");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [importOpen, setImportOpen] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editTransaction, setEditTransaction] = useState<Transaction | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
