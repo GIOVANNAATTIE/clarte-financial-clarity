@@ -21,7 +21,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Upload, Search, Brain, Filter, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, FileSpreadsheet, FileText } from "lucide-react";
+import { Upload, Search, Brain, Filter, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -57,9 +57,7 @@ const statusStyles: Record<string, string> = {
   "revisão": "bg-destructive/10 text-destructive",
 };
 
-const banks = [
-  "Banco do Brasil", "Bradesco", "Itaú", "Santander", "Caixa Econômica", "Nubank", "Inter", "Sicoob", "Sicredi", "Outro"
-];
+const banks: string[] = [];
 
 type SortField = "data" | "descricao" | "categoria" | "centroCusto" | "valor" | "status";
 type SortDir = "asc" | "desc";
