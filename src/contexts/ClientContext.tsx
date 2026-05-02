@@ -26,7 +26,15 @@ const ClientContext = createContext<ClientContextType | null>(null);
 
 export const useClient = () => {
   const ctx = useContext(ClientContext);
-  if (!ctx) throw new Error("useClient must be used within ClientProvider");
+  if (!ctx) {
+    // Fallback for HMR or missing provider — return safe defaults
+    return {
+      clients: [],
+      selectedClient: null,
+      selectClient: () => {},
+      clearClient: () => {},
+    } as ClientContextType;
+  }
   return ctx;
 };
 
