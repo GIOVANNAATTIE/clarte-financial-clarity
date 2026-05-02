@@ -300,6 +300,7 @@ const Transactions = () => {
                     </span>
                   </th>
                 ))}
+                <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center w-16">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -328,6 +329,23 @@ const Transactions = () => {
                       {t.status}
                     </span>
                   </td>
+                  <td className="px-5 py-3.5 text-center">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal size={16} />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEdit(t)} className="gap-2">
+                          <Pencil size={14} /> Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDelete(t.id)} className="gap-2 text-destructive focus:text-destructive">
+                          <Trash2 size={14} /> Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -337,10 +355,99 @@ const Transactions = () => {
           <span>{filtered.length} lançamentos encontrados</span>
           <span className="flex items-center gap-1">
             <Brain size={12} className="text-gold" />
-            {mockTransactions.filter((t) => t.aiCategorized).length} categorizados por IA
+            {transactions.filter((t) => t.aiCategorized).length} categorizados por IA
           </span>
         </div>
       </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar Lançamento</DialogTitle>
+          </DialogHeader>
+          {editTransaction && (
+            <div className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <Label>Data</Label>
+                <Input
+                  type="date"
+                  value={editTransaction.data}
+                  onChange={(e) => setEditTransaction({ ...editTransaction, data: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Input
+                  value={editTransaction.descricao}
+                  onChange={(e) => setEditTransaction({ ...editTransaction, descricao: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Categoria</Label>
+                  <Input
+                    value={editTransaction.categoria}
+                    onChange={(e) => setEditTransaction({ ...editTransaction, categoria: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Centro de Custo</Label>
+                  <Input
+                    value={editTransaction.centroCusto}
+                    onChange={(e) => setEditTransaction({ ...editTransaction, centroCusto: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Valor</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={editTransaction.valor}
+                    onChange={(e) => setEditTransaction({ ...editTransaction, valor: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select
+                    value={editTransaction.status}
+                    onValueChange={(v) => setEditTransaction({ ...editTransaction, status: v as Transaction["status"] })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="conciliado">Conciliado</SelectItem>
+                      <SelectItem value="pendente">Pendente</SelectItem>
+                      <SelectItem value="revisão">Revisão</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <Button variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
+                <Button onClick={handleSaveEdit}>Salvar</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Excluir Lançamento</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Tem certeza que deseja excluir este lançamento? Esta ação não pode ser desfeita.</p>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={confirmDelete}>Excluir</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
