@@ -319,7 +319,7 @@ const Transactions = () => {
                   { field: "status" as SortField, label: "Status" },
                 ].map((col, idx) => (
                   <th
-                    key={col.field}
+                    key={`${col.field}-${idx}`}
                     onClick={() => handleSort(col.field)}
                     className={cn(
                       "text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 cursor-pointer hover:text-foreground transition-colors select-none text-center",
