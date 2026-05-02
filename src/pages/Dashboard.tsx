@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
-import { TrendingUp, TrendingDown, DollarSign, BarChart3, CalendarDays, Check, SlidersHorizontal } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, BarChart3, CalendarDays, Check, SlidersHorizontal, AlertCircle, Clock } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import {
