@@ -57,7 +57,6 @@ const statusStyles: Record<string, string> = {
   "revisão": "bg-destructive/10 text-destructive",
 };
 
-const banks: string[] = [];
 
 type SortField = "data" | "descricao" | "categoria" | "centroCusto" | "valor" | "status";
 type SortDir = "asc" | "desc";
@@ -72,8 +71,6 @@ const Transactions = () => {
   const [sortField, setSortField] = useState<SortField>("data");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [importOpen, setImportOpen] = useState(false);
-  const [importType, setImportType] = useState<"ofx" | "csv">("ofx");
-  const [selectedBank, setSelectedBank] = useState("");
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
