@@ -21,7 +21,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Upload, Search, Brain, Filter, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, FileText, MoreHorizontal, Pencil, Trash2, Download } from "lucide-react";
+import { Upload, Search, Brain, Filter, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, FileText, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
@@ -46,20 +46,18 @@ type Transaction = {
 };
 
 const mockTransactions: Transaction[] = [
-  { id: 1, data: "2026-04-30", descricao: "Fornecedor ABC", categoria: "Fornecedores", centroCusto: "Operações", valor: -12450.0, status: "conciliado", aiCategorized: true },
-  { id: 2, data: "2026-04-29", descricao: "Cliente XYZ", categoria: "Receitas", centroCusto: "Comercial", valor: 28900.0, status: "conciliado", aiCategorized: false },
-  { id: 3, data: "2026-04-28", descricao: "Folha Abril", categoria: "Pessoal", centroCusto: "RH", valor: -45320.0, status: "conciliado", aiCategorized: true },
+  { id: 1, data: "2026-04-30", descricao: "Pagamento Fornecedor ABC", categoria: "Fornecedores", centroCusto: "Operações", valor: -12450.0, status: "conciliado", aiCategorized: true },
+  { id: 2, data: "2026-04-29", descricao: "Recebimento Cliente XYZ", categoria: "Receitas", centroCusto: "Comercial", valor: 28900.0, status: "conciliado", aiCategorized: false },
+  { id: 3, data: "2026-04-28", descricao: "Folha de Pagamento Abril", categoria: "Pessoal", centroCusto: "RH", valor: -45320.0, status: "conciliado", aiCategorized: true },
   { id: 4, data: "2026-04-27", descricao: "Aluguel Sede Administrativa", categoria: "Infraestrutura", centroCusto: "Administrativo", valor: -8500.0, status: "pendente", aiCategorized: true },
   { id: 5, data: "2026-04-26", descricao: "Venda Produto Premium", categoria: "Receitas", centroCusto: "Comercial", valor: 15750.0, status: "conciliado", aiCategorized: false },
-  { id: 6, data: "2026-04-25", descricao: "Consultoria Delta", categoria: "Serviços", centroCusto: "Projetos", valor: -6200.0, status: "revisão", aiCategorized: true },
-  { id: 7, data: "2026-04-24", descricao: "Parcela 3/6", categoria: "Receitas", centroCusto: "Comercial", valor: 9800.0, status: "pendente", aiCategorized: false },
+  { id: 6, data: "2026-04-25", descricao: "Serviço de Consultoria", categoria: "Serviços", centroCusto: "Projetos", valor: -6200.0, status: "revisão", aiCategorized: true },
+  { id: 7, data: "2026-04-24", descricao: "Recebimento Parcela 3/6", categoria: "Receitas", centroCusto: "Comercial", valor: 9800.0, status: "pendente", aiCategorized: false },
   { id: 8, data: "2026-04-23", descricao: "Material de Escritório", categoria: "Materiais", centroCusto: "Administrativo", valor: -1230.0, status: "conciliado", aiCategorized: true },
 ];
 
-const formatCurrency = (value: number) => {
-  const formatted = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Math.abs(value));
-  return value < 0 ? `- ${formatted}` : formatted;
-};
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
 const statusStyles: Record<string, string> = {
   conciliado: "bg-success/10 text-success",
@@ -151,45 +149,18 @@ const Transactions = () => {
     setDeleteId(null);
   };
 
-  const handleExportExcel = () => {
-    const header = ["Data", "Tipo", "Descrição", "Categoria", "Centro de Custo", "Valor", "Status"];
-    const rows = filtered.map(t => [
-      new Date(t.data).toLocaleDateString("pt-BR"),
-      t.valor < 0 ? "Conta a Pagar" : "Conta a Receber",
-      t.descricao,
-      t.categoria,
-      t.centroCusto,
-      t.valor.toFixed(2).replace(".", ","),
-      t.status,
-    ]);
-    const csvContent = [header, ...rows].map(r => r.map(c => `"${c}"`).join(";")).join("\n");
-    const BOM = "\uFEFF";
-    const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `movimentacao_${format(new Date(), "yyyy-MM-dd")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="font-heading text-2xl font-bold text-foreground">Movimentação</h1>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="lg" className="gap-2" onClick={handleExportExcel}>
-            <Download size={18} />
-            Exportar Excel
-          </Button>
-          <Dialog open={importOpen} onOpenChange={setImportOpen}>
-            <DialogTrigger asChild>
-              <Button variant="hero" size="lg" className="gap-2">
-                <Upload size={18} />
-                Importar Extrato
-              </Button>
+        <Dialog open={importOpen} onOpenChange={setImportOpen}>
+          <DialogTrigger asChild>
+            <Button variant="hero" size="lg" className="gap-2">
+              <Upload size={18} />
+              Importar Extrato
+            </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
@@ -217,7 +188,6 @@ const Transactions = () => {
             </div>
           </DialogContent>
         </Dialog>
-        </div>
       </div>
 
       {/* Filters */}
@@ -314,12 +284,11 @@ const Transactions = () => {
                   { field: "descricao" as SortField, label: "Descrição" },
                   { field: "categoria" as SortField, label: "Categoria" },
                   { field: "centroCusto" as SortField, label: "Centro de Custo", hideOnMobile: true },
-                  { field: "valor" as SortField, label: "Tipo" },
                   { field: "valor" as SortField, label: "Valor" },
                   { field: "status" as SortField, label: "Status" },
-                ].map((col, idx) => (
+                ].map((col) => (
                   <th
-                    key={`${col.field}-${idx}`}
+                    key={col.field}
                     onClick={() => handleSort(col.field)}
                     className={cn(
                       "text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 cursor-pointer hover:text-foreground transition-colors select-none text-center",
@@ -353,12 +322,7 @@ const Transactions = () => {
                   </td>
                   <td className="px-5 py-3.5 text-sm text-muted-foreground">{t.categoria}</td>
                   <td className="px-5 py-3.5 text-sm text-muted-foreground hidden lg:table-cell">{t.centroCusto}</td>
-                  <td className="px-5 py-3.5 text-center">
-                    <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${t.valor < 0 ? "bg-destructive/10 text-destructive" : "bg-success/10 text-success"}`}>
-                      {t.valor < 0 ? "Conta a Pagar" : "Conta a Receber"}
-                    </span>
-                  </td>
-                  <td className={`px-5 py-3.5 text-sm font-mono text-right font-medium whitespace-nowrap ${t.valor >= 0 ? "text-success" : "text-destructive"}`}>
+                  <td className={`px-5 py-3.5 text-sm font-mono text-right font-medium ${t.valor >= 0 ? "text-success" : "text-destructive"}`}>
                     {formatCurrency(t.valor)}
                   </td>
                   <td className="px-5 py-3.5 text-center">
