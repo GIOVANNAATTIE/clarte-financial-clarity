@@ -328,7 +328,7 @@ const Dashboard = () => {
           </div>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={cashFlowData}>
+              <BarChart data={filteredCashFlow}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(0, 0%, 90%)" />
                 <XAxis dataKey="mes" tick={{ fontSize: 12, fill: "hsl(0, 0%, 45%)" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "hsl(0, 0%, 45%)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
