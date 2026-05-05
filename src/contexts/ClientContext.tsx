@@ -21,6 +21,7 @@ type ClientContextType = {
   selectedClient: Client | null;
   selectClient: (client: Client) => void;
   clearClient: () => void;
+  updateClient: (client: Client) => void;
 };
 
 const ClientContext = createContext<ClientContextType | null>(null);
