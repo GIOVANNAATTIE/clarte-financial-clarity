@@ -244,15 +244,27 @@ const Transactions = () => {
                 </div>
               </div>
 
-              <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-gold/50 transition-colors cursor-pointer">
+              <div
+                className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-gold/50 transition-colors cursor-pointer"
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleDrop}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".ofx"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
                 <Upload size={32} className="mx-auto text-muted-foreground mb-2" />
                 <p className="text-sm font-medium text-foreground">Arraste o arquivo ou clique para selecionar</p>
                 <p className="text-xs text-muted-foreground mt-1">Aceita arquivos .ofx</p>
               </div>
 
-              <Button className="w-full">
+              <Button className="w-full" disabled={importing} onClick={() => fileInputRef.current?.click()}>
                 <Upload size={16} className="mr-2" />
-                Importar Arquivo
+                {importing ? "Processando..." : "Selecionar Arquivo OFX"}
               </Button>
             </div>
           </DialogContent>
