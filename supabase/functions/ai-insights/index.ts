@@ -130,15 +130,22 @@ REGRAS OBRIGATÓRIAS:
 - Use emojis para indicar severidade: 🔴 Crítico, 🟡 Atenção, 🟢 Positivo, ℹ️ Informativo
 - Valores monetários em formato brasileiro (R$ X.XXX,XX)
 
-ESTRUTURA DO RELATÓRIO:
-1. **📊 Resumo Executivo** — Visão geral do período com totais de receitas, despesas e saldo
-2. **🔴 Alertas Críticos** — Anomalias, duplicidades, valores fora do padrão
-3. **🟡 Pontos de Atenção** — Variações significativas, tendências preocupantes
-4. **📈 Análise de Receitas** — Principais fontes, concentração, variações
-5. **📉 Análise de Despesas** — Maiores fornecedores, categorias mais onerosas, despesas recorrentes
-6. **🔄 Padrões Detectados** — Pagamentos recorrentes, parcelas, mensalidades
-7. **💡 Recomendações Estratégicas** — Ações concretas para otimizar o financeiro
-8. **📅 Projeções** — Estimativas baseadas no histórico real
+ESTRUTURA OBRIGATÓRIA DO RELATÓRIO (use EXATAMENTE estes títulos de seção com ##):
+
+## 📊 Resumo Executivo
+Visão geral do período com totais de receitas, despesas e saldo. Alertas críticos e pontos de atenção.
+
+## 📈 Receitas
+Análise detalhada de todas as receitas: principais fontes/clientes, concentração de receita, variações, tendências, riscos de dependência de poucos clientes, comparações.
+
+## 📉 Despesas
+Análise detalhada de todas as despesas: categorias mais onerosas, despesas recorrentes, variações significativas, oportunidades de redução, parcelas detectadas.
+
+## 🏢 Fornecedores
+Análise dos principais fornecedores/prestadores: ranking por volume, frequência de pagamento, padrões detectados (duplicidades, valores fora do padrão), recomendações de negociação.
+
+## 💡 Recomendações e Projeções
+Ações concretas para otimizar o financeiro. Estimativas e projeções baseadas no histórico real.
 
 CONTEXTO:
 - Período analisado: ${periodoLabel}
