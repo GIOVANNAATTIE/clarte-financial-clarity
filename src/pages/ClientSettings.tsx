@@ -87,6 +87,24 @@ const ClientSettings = () => {
     setModules(modules.map(m => m.id === moduleId ? { ...m, permissoes: { ...m.permissoes, [perm]: !m.permissoes[perm] } } : m));
   };
 
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedClient) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Apenas imagens são aceitas", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      updateClient({ ...selectedClient, logoUrl: ev.target?.result as string });
+      toast({ title: "Logo atualizado com sucesso" });
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -96,13 +114,82 @@ const ClientSettings = () => {
         </p>
       </div>
 
-      <Tabs defaultValue="users">
+      <Tabs defaultValue="perfil">
         <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="perfil" className="gap-2"><Building size={14} /> Perfil</TabsTrigger>
           <TabsTrigger value="users" className="gap-2"><Users size={14} /> Usuários</TabsTrigger>
           <TabsTrigger value="modules" className="gap-2"><Shield size={14} /> Módulos</TabsTrigger>
           <TabsTrigger value="ai" className="gap-2"><Brain size={14} /> IA & Tokens</TabsTrigger>
           <TabsTrigger value="billing" className="gap-2"><CreditCard size={14} /> Financeiro</TabsTrigger>
         </TabsList>
+
+        {/* Perfil Tab */}
+        <TabsContent value="perfil" className="space-y-4 mt-4">
+          <div className="bg-card rounded-xl border border-border p-6 shadow-[var(--shadow-card)]">
+            <h3 className="text-sm font-semibold text-foreground mb-4">Logo da Empresa</h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              Este logo será usado nos relatórios e papel timbrado gerados para este cliente.
+            </p>
+            <div className="flex items-center gap-6">
+              <div className="relative">
+                {selectedClient?.logoUrl ? (
+                  <img src={selectedClient.logoUrl} alt="Logo" className="w-24 h-24 rounded-xl object-cover border-2 border-border" />
+                ) : (
+                  <div className="w-24 h-24 rounded-xl bg-muted flex items-center justify-center border-2 border-dashed border-border">
+                    <Upload size={28} className="text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleLogoUpload}
+                />
+                <Button variant="outline" className="gap-2" onClick={() => logoInputRef.current?.click()}>
+                  <Upload size={14} />
+                  {selectedClient?.logoUrl ? "Trocar Logo" : "Enviar Logo"}
+                </Button>
+                {selectedClient?.logoUrl && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => {
+                      if (selectedClient) {
+                        updateClient({ ...selectedClient, logoUrl: "" });
+                        toast({ title: "Logo removido" });
+                      }
+                    }}
+                  >
+                    Remover Logo
+                  </Button>
+                )}
+                <p className="text-[10px] text-muted-foreground">PNG, JPG ou SVG. Recomendado: 512x512px</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-card rounded-xl border border-border p-6 shadow-[var(--shadow-card)]">
+            <h3 className="text-sm font-semibold text-foreground mb-4">Dados do Cliente</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-sm">Nome / Razão Social</Label>
+                <p className="text-sm text-foreground font-medium">{selectedClient?.name || "—"}</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">CNPJ</Label>
+                <p className="text-sm text-foreground font-medium">{selectedClient?.cnpj || "—"}</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Segmento</Label>
+                <p className="text-sm text-foreground font-medium">{selectedClient?.segment || "—"}</p>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
 
         {/* Users Tab */}
         <TabsContent value="users" className="space-y-4 mt-4">
