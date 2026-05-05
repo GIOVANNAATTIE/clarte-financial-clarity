@@ -185,7 +185,7 @@ const Transactions = () => {
             // Auto-create entity
             const entityType = ofx.type === "entrada" ? "cliente" : "fornecedor";
             const { data: newEntity } = await supabase.from("entities").insert({
-              user_id: user.id,
+               user_id: userId,
               name: ofx.description,
               type: entityType,
             }).select("id, name, type, default_category_id").single();
@@ -198,7 +198,7 @@ const Transactions = () => {
           const value = ofx.type === "saida" ? -ofx.value : ofx.value;
 
           await supabase.from("transactions").insert({
-            user_id: user.id,
+            user_id: userId,
             date: ofx.date,
             description: ofx.description,
             value,
