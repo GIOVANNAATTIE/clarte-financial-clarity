@@ -394,8 +394,20 @@ const Transactions = () => {
                   <td className="px-5 py-3.5 text-sm text-foreground">
                     {t.descricao}
                   </td>
-                  <td className="px-5 py-3.5 text-sm text-muted-foreground">{t.categoria}</td>
-                  <td className="px-5 py-3.5 text-sm text-muted-foreground hidden lg:table-cell">{t.centroCusto}</td>
+                  <td className="px-5 py-3.5 text-sm text-muted-foreground">
+                    {t.categoria ? t.categoria : (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-warning/10 text-warning">
+                        <AlertTriangle size={12} /> Pendente
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3.5 text-sm text-muted-foreground hidden lg:table-cell">
+                    {t.centroCusto ? t.centroCusto : (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-warning/10 text-warning">
+                        <AlertTriangle size={12} /> Pendente
+                      </span>
+                    )}
+                  </td>
                   <td className={`px-5 py-3.5 text-sm font-mono font-medium whitespace-nowrap text-center ${t.valor >= 0 ? "text-success" : "text-destructive"}`}>
                     {t.valor < 0 ? "- " : ""}{formatCurrency(Math.abs(t.valor))}
                   </td>
