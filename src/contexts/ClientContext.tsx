@@ -43,14 +43,21 @@ export const useClient = () => {
 
 export const ClientProvider = ({ children }: { children: ReactNode }) => {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [clients, setClients] = useState<Client[]>(mockClients);
+
+  const updateClient = (updated: Client) => {
+    setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
+    if (selectedClient?.id === updated.id) setSelectedClient(updated);
+  };
 
   return (
     <ClientContext.Provider
       value={{
-        clients: mockClients,
+        clients,
         selectedClient,
         selectClient: setSelectedClient,
         clearClient: () => setSelectedClient(null),
+        updateClient,
       }}
     >
       {children}
