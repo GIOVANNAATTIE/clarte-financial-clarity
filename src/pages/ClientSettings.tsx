@@ -61,7 +61,7 @@ const roleStyles: Record<UserRole, string> = {
 };
 
 const ClientSettings = () => {
-  const { selectedClient } = useClient();
+  const { selectedClient, updateClient } = useClient();
   const [users, setUsers] = useState(mockUsers);
   const [modules, setModules] = useState(defaultModules);
   const [tokensPerMonth, setTokensPerMonth] = useState("50000");
