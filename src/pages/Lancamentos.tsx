@@ -493,7 +493,7 @@ const Lancamentos = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Centro de Custo</Label>
+                <Label>Centro de Custo <span className="text-muted-foreground text-xs">(opcional)</span></Label>
                 <Select value={form.cost_center_id || "none"} onValueChange={(v) => setForm({ ...form, cost_center_id: v === "none" ? "" : v })}>
                   <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                   <SelectContent>
