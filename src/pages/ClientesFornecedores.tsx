@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Search, Upload, Loader2, MapPin, Building2, Key } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Loader2, MapPin, Building2, Key } from "lucide-react";
 import { initialClientesFornecedores, type ClienteFornecedor } from "@/data/cadastros";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
@@ -32,7 +32,6 @@ const emptyEntity = (tipo: "cliente" | "fornecedor"): ClienteFornecedor => ({
   conta: "",
   tipoConta: "",
   chavePix: "",
-  logoUrl: "",
 });
 
 const ClientesFornecedores = () => {
@@ -54,7 +53,7 @@ const ClientesFornecedores = () => {
   const [fornecedorDeleteId, setFornecedorDeleteId] = useState<number | null>(null);
 
   const [cepLoading, setCepLoading] = useState(false);
-  const logoInputRef = useRef<HTMLInputElement>(null);
+  
 
   // ViaCEP lookup
   const fetchCep = async (cep: string, setItem: (item: ClienteFornecedor) => void, currentItem: ClienteFornecedor) => {
@@ -85,24 +84,6 @@ const ClientesFornecedores = () => {
   };
 
   // Logo upload (local preview)
-  const handleLogoUpload = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    setItem: (item: ClienteFornecedor) => void,
-    currentItem: ClienteFornecedor
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast({ title: "Apenas imagens são aceitas", variant: "destructive" });
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setItem({ ...currentItem, logoUrl: ev.target?.result as string });
-    };
-    reader.readAsDataURL(file);
-  };
-
   // Clientes handlers
   const handleNewCliente = () => { setEditCliente(emptyEntity("cliente")); setClienteDialogOpen(true); };
   const handleEditCliente = (item: ClienteFornecedor) => { setEditCliente({ ...item }); setClienteDialogOpen(true); };
@@ -157,13 +138,9 @@ const ClientesFornecedores = () => {
               <tr key={item.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
                 <td className="px-5 py-3.5 text-sm text-foreground">
                   <div className="flex items-center gap-2">
-                    {item.logoUrl ? (
-                      <img src={item.logoUrl} alt="" className="w-7 h-7 rounded-full object-cover border border-border" />
-                    ) : (
-                      <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground">
-                        {item.nome.charAt(0).toUpperCase()}
-                      </div>
-                    )}
+                    <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground">
+                      {item.nome.charAt(0).toUpperCase()}
+                    </div>
                     {item.nome}
                   </div>
                 </td>
@@ -207,40 +184,6 @@ const ClientesFornecedores = () => {
         <DialogHeader><DialogTitle>{editItem && items.some(i => i.id === editItem.id) ? "Editar" : "Novo"} {tipo}</DialogTitle></DialogHeader>
         {editItem && (
           <div className="space-y-5 pt-2">
-            {/* Logo Upload */}
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                {editItem.logoUrl ? (
-                  <img src={editItem.logoUrl} alt="Logo" className="w-16 h-16 rounded-xl object-cover border-2 border-border" />
-                ) : (
-                  <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center border-2 border-dashed border-border">
-                    <Upload size={20} className="text-muted-foreground" />
-                  </div>
-                )}
-              </div>
-              <div>
-                <input
-                  ref={logoInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => handleLogoUpload(e, setEditItem, editItem)}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => logoInputRef.current?.click()}
-                >
-                  <Upload size={14} />
-                  {editItem.logoUrl ? "Trocar Logo" : "Upload de Logo"}
-                </Button>
-                <p className="text-[10px] text-muted-foreground mt-1">Usado nos relatórios e papel timbrado</p>
-              </div>
-            </div>
-
-            <Separator />
-
             {/* Dados Pessoais */}
             <div>
               <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Dados Cadastrais</h3>

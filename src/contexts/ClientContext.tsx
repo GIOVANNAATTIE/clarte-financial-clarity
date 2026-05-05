@@ -5,14 +5,15 @@ export type Client = {
   name: string;
   cnpj: string;
   segment: string;
+  logoUrl: string;
 };
 
 const mockClients: Client[] = [
-  { id: "1", name: "Grupo TDL", cnpj: "12.345.678/0001-90", segment: "Empresarial" },
-  { id: "2", name: "MKPlace", cnpj: "23.456.789/0001-01", segment: "Marketplace" },
-  { id: "3", name: "Tech Solutions Ltda", cnpj: "34.567.890/0001-12", segment: "Tecnologia" },
-  { id: "4", name: "Construtora Horizonte", cnpj: "45.678.901/0001-23", segment: "Construção Civil" },
-  { id: "5", name: "Clínica Bem Estar", cnpj: "56.789.012/0001-34", segment: "Saúde" },
+  { id: "1", name: "Grupo TDL", cnpj: "12.345.678/0001-90", segment: "Empresarial", logoUrl: "" },
+  { id: "2", name: "MKPlace", cnpj: "23.456.789/0001-01", segment: "Marketplace", logoUrl: "" },
+  { id: "3", name: "Tech Solutions Ltda", cnpj: "34.567.890/0001-12", segment: "Tecnologia", logoUrl: "" },
+  { id: "4", name: "Construtora Horizonte", cnpj: "45.678.901/0001-23", segment: "Construção Civil", logoUrl: "" },
+  { id: "5", name: "Clínica Bem Estar", cnpj: "56.789.012/0001-34", segment: "Saúde", logoUrl: "" },
 ];
 
 type ClientContextType = {
@@ -20,6 +21,7 @@ type ClientContextType = {
   selectedClient: Client | null;
   selectClient: (client: Client) => void;
   clearClient: () => void;
+  updateClient: (client: Client) => void;
 };
 
 const ClientContext = createContext<ClientContextType | null>(null);
@@ -33,6 +35,7 @@ export const useClient = () => {
       selectedClient: null,
       selectClient: () => {},
       clearClient: () => {},
+      updateClient: () => {},
     } as ClientContextType;
   }
   return ctx;
@@ -40,14 +43,21 @@ export const useClient = () => {
 
 export const ClientProvider = ({ children }: { children: ReactNode }) => {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [clients, setClients] = useState<Client[]>(mockClients);
+
+  const updateClient = (updated: Client) => {
+    setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
+    if (selectedClient?.id === updated.id) setSelectedClient(updated);
+  };
 
   return (
     <ClientContext.Provider
       value={{
-        clients: mockClients,
+        clients,
         selectedClient,
         selectClient: setSelectedClient,
         clearClient: () => setSelectedClient(null),
+        updateClient,
       }}
     >
       {children}

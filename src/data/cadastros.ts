@@ -18,7 +18,6 @@ export type ClienteFornecedor = {
   conta: string;
   tipoConta: string;
   chavePix: string;
-  logoUrl: string;
 };
 
 export type Categoria = {
@@ -33,7 +32,7 @@ export type CentroCusto = {
   descricao: string;
 };
 
-const emptyFields = { email: "", telefone: "", cep: "", endereco: "", bairro: "", cidade: "", estado: "", banco: "", agencia: "", conta: "", tipoConta: "", chavePix: "", logoUrl: "" };
+const emptyFields = { email: "", telefone: "", cep: "", endereco: "", bairro: "", cidade: "", estado: "", banco: "", agencia: "", conta: "", tipoConta: "", chavePix: "" };
 
 export const initialClientesFornecedores: ClienteFornecedor[] = [
   { id: 1, nome: "Fornecedor ABC", tipo: "fornecedor", documento: "12.345.678/0001-90", contato: "contato@abc.com", ...emptyFields },
