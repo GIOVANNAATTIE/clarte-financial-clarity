@@ -136,7 +136,7 @@ const Transactions = () => {
       }
       setImporting(false);
     };
-    reader.readAsText(content || file);
+    reader.readAsText(file);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
