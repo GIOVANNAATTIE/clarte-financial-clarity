@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,12 +9,15 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Search, Loader2, MapPin, Building2, Key } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Loader2, MapPin, Building2, Key, Tag } from "lucide-react";
 import { initialClientesFornecedores, type ClienteFornecedor } from "@/data/cadastros";
+import { initialCategorias } from "@/data/cadastros";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 
-const emptyEntity = (tipo: "cliente" | "fornecedor"): ClienteFornecedor => ({
+type CategoryOption = { id: number; nome: string; tipo: string };
+
+const emptyEntity = (tipo: "cliente" | "fornecedor"): ClienteFornecedor & { categoriaPadrao: string } => ({
   id: Date.now(),
   nome: "",
   tipo,
