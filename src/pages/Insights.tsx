@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Brain, RefreshCw, CalendarDays, Loader2,
+  TrendingUp, TrendingDown, Building2, Lightbulb, BarChart3,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
