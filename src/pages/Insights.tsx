@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
-  Brain, TrendingUp, TrendingDown, AlertTriangle, RefreshCw, Users, ShoppingCart,
-  ArrowUpRight, ArrowDownRight, Minus, CalendarDays, Loader2,
+  Brain, RefreshCw, CalendarDays, Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -21,109 +20,9 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-type Severity = "critical" | "warning" | "info" | "positive";
-
-type Insight = {
-  id: number;
-  title: string;
-  description: string;
-  category: string;
-  severity: Severity;
-  trend: string;
-  icon: React.ReactNode;
-};
-
-const insights: Insight[] = [
-  {
-    id: 1,
-    title: "Folha de pagamento subiu 20%",
-    description: "A despesa com pessoal aumentou de R$ 37.760 para R$ 45.320 em comparação ao mês anterior. Recomendamos revisar os centros de custo relacionados a RH.",
-    category: "Despesas",
-    severity: "critical",
-    trend: "+20%",
-    icon: <TrendingUp size={18} />,
-  },
-  {
-    id: 2,
-    title: "Receita bruta cresceu 12,5%",
-    description: "A receita total do mês atingiu R$ 334.300, representando um crescimento consistente em relação ao período anterior. O segmento comercial liderou o aumento.",
-    category: "Receitas",
-    severity: "positive",
-    trend: "+12,5%",
-    icon: <ArrowUpRight size={18} />,
-  },
-  {
-    id: 3,
-    title: "Fornecedor ABC com pagamentos recorrentes",
-    description: "Foram identificados 4 pagamentos ao Fornecedor ABC nos últimos 30 dias, totalizando R$ 49.800. Verifique se há duplicidade ou renegociação possível.",
-    category: "Fornecedores",
-    severity: "warning",
-    trend: "4x/mês",
-    icon: <RefreshCw size={18} />,
-  },
-  {
-    id: 4,
-    title: "Despesas com infraestrutura estáveis",
-    description: "Os custos de infraestrutura mantiveram-se em R$ 8.500 pelo terceiro mês consecutivo. Nenhuma ação necessária no momento.",
-    category: "Despesas",
-    severity: "info",
-    trend: "0%",
-    icon: <Minus size={18} />,
-  },
-  {
-    id: 5,
-    title: "Queda de 15% em receitas de serviços",
-    description: "A categoria de serviços registrou queda de R$ 7.300 para R$ 6.200 este mês. Avalie se houve perda de contratos ou sazonalidade.",
-    category: "Receitas",
-    severity: "warning",
-    trend: "-15%",
-    icon: <ArrowDownRight size={18} />,
-  },
-  {
-    id: 6,
-    title: "Novo fornecedor detectado",
-    description: "Um novo fornecedor 'Serviço de Consultoria' foi registrado com um lançamento de R$ 6.200. Categorizado automaticamente pela IA.",
-    category: "Fornecedores",
-    severity: "info",
-    trend: "Novo",
-    icon: <ShoppingCart size={18} />,
-  },
-  {
-    id: 7,
-    title: "Concentração de receita em poucos clientes",
-    description: "73% da receita mensal está concentrada em apenas 2 clientes. Risco alto de dependência — recomenda-se diversificação da carteira.",
-    category: "Receitas",
-    severity: "critical",
-    trend: "73%",
-    icon: <Users size={18} />,
-  },
-  {
-    id: 8,
-    title: "Despesas operacionais dentro do orçamento",
-    description: "As despesas operacionais totalizaram R$ 95.800, ficando 3% abaixo do orçamento previsto de R$ 98.700. Bom controle financeiro.",
-    category: "Despesas",
-    severity: "positive",
-    trend: "-3%",
-    icon: <TrendingDown size={18} />,
-  },
-];
-
-const severityConfig: Record<Severity, { bg: string; border: string; badge: string; icon: string }> = {
-  critical: { bg: "bg-destructive/5", border: "border-destructive/30", badge: "bg-destructive/10 text-destructive", icon: "text-destructive" },
-  warning: { bg: "bg-warning/5", border: "border-warning/30", badge: "bg-warning/10 text-warning", icon: "text-warning" },
-  info: { bg: "bg-muted/50", border: "border-border", badge: "bg-muted text-muted-foreground", icon: "text-muted-foreground" },
-  positive: { bg: "bg-success/5", border: "border-success/30", badge: "bg-success/10 text-success", icon: "text-success" },
-};
-
-const severityLabels: Record<Severity, string> = {
-  critical: "Crítico",
-  warning: "Atenção",
-  info: "Informativo",
-  positive: "Positivo",
-};
-
-const categories = ["Todos", "Receitas", "Despesas", "Fornecedores"];
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import ReactMarkdown from "react-markdown";
 
 const monthOptions = [
   { value: "01", label: "Janeiro" },
@@ -146,11 +45,10 @@ const currentDate = new Date();
 const formattedDate = format(currentDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
 
 const Insights = () => {
-  const [categoryFilter, setCategoryFilter] = useState("Todos");
-  const [severityFilter, setSeverityFilter] = useState<Severity | "all">("all");
-  const [isLoaded, setIsLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [analysisContent, setAnalysisContent] = useState("");
+  const { toast } = useToast();
 
   // Date filters
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear().toString());
@@ -187,34 +85,148 @@ const Insights = () => {
   const formatShortDate = (date: Date) =>
     date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-  // Only show data after clicking "Atualizar"
-  const activeInsights = isLoaded ? insights : [];
-
-  // Filter by category
-  let filtered = categoryFilter === "Todos" ? activeInsights : activeInsights.filter((i) => i.category === categoryFilter);
-
-  // Filter by severity
-  if (severityFilter !== "all") {
-    filtered = filtered.filter((i) => i.severity === severityFilter);
-  }
-
-  const totalCount = activeInsights.length;
-  const criticalCount = activeInsights.filter((i) => i.severity === "critical").length;
-  const warningCount = activeInsights.filter((i) => i.severity === "warning").length;
-  const positiveCount = activeInsights.filter((i) => i.severity === "positive").length;
-
-  const handleSeverityCardClick = (severity: Severity | "all") => {
-    setSeverityFilter((prev) => (prev === severity ? "all" : severity));
+  // Build date range from filters
+  const getDateRange = () => {
+    if (filterMode === "custom" && customDateFrom && customDateTo) {
+      return {
+        dateFrom: format(customDateFrom, "yyyy-MM-dd"),
+        dateTo: format(customDateTo, "yyyy-MM-dd"),
+      };
+    }
+    if (filterMode === "months") {
+      if (selectedMonths.length === 0 || selectedMonths.length === 12) {
+        return { dateFrom: `${selectedYear}-01-01`, dateTo: `${selectedYear}-12-31` };
+      }
+      const sorted = [...selectedMonths].sort();
+      const firstMonth = sorted[0];
+      const lastMonth = sorted[sorted.length - 1];
+      const lastDay = new Date(parseInt(selectedYear), parseInt(lastMonth), 0).getDate();
+      return {
+        dateFrom: `${selectedYear}-${firstMonth}-01`,
+        dateTo: `${selectedYear}-${lastMonth}-${lastDay}`,
+      };
+    }
+    return { dateFrom: undefined, dateTo: undefined };
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsLoading(true);
-    // Simula chamada de IA (futuramente será a chamada real)
-    setTimeout(() => {
-      setIsLoaded(true);
-      setIsLoading(false);
+    setAnalysisContent("");
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast({ title: "Faça login para usar a análise de IA", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
+
+      const { dateFrom, dateTo } = getDateRange();
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-insights`;
+
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({ dateFrom, dateTo }),
+      });
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({ error: "Erro desconhecido" }));
+        toast({ title: errData.error || "Erro na análise", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
+
+      const contentType = resp.headers.get("content-type") || "";
+
+      // Check if it's a JSON error response
+      if (contentType.includes("application/json")) {
+        const data = await resp.json();
+        if (data.error) {
+          setAnalysisContent(`⚠️ ${data.error}`);
+        }
+        setIsLoading(false);
+        setLastUpdated(new Date());
+        return;
+      }
+
+      // Stream SSE response
+      const reader = resp.body?.getReader();
+      if (!reader) {
+        toast({ title: "Erro ao iniciar stream", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
+
+      const decoder = new TextDecoder();
+      let textBuffer = "";
+      let fullContent = "";
+      let streamDone = false;
+
+      while (!streamDone) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        textBuffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex: number;
+        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+          let line = textBuffer.slice(0, newlineIndex);
+          textBuffer = textBuffer.slice(newlineIndex + 1);
+
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (line.startsWith(":") || line.trim() === "") continue;
+          if (!line.startsWith("data: ")) continue;
+
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") {
+            streamDone = true;
+            break;
+          }
+
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+            if (content) {
+              fullContent += content;
+              setAnalysisContent(fullContent);
+            }
+          } catch {
+            textBuffer = line + "\n" + textBuffer;
+            break;
+          }
+        }
+      }
+
+      // Final flush
+      if (textBuffer.trim()) {
+        for (let raw of textBuffer.split("\n")) {
+          if (!raw) continue;
+          if (raw.endsWith("\r")) raw = raw.slice(0, -1);
+          if (raw.startsWith(":") || raw.trim() === "") continue;
+          if (!raw.startsWith("data: ")) continue;
+          const jsonStr = raw.slice(6).trim();
+          if (jsonStr === "[DONE]") continue;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+            if (content) {
+              fullContent += content;
+              setAnalysisContent(fullContent);
+            }
+          } catch { /* ignore */ }
+        }
+      }
+
       setLastUpdated(new Date());
-    }, 2000);
+    } catch (e) {
+      console.error("AI analysis error:", e);
+      toast({ title: "Erro ao conectar com a IA", variant: "destructive" });
+    }
+    setIsLoading(false);
   };
 
   return (
@@ -362,129 +374,38 @@ const Insights = () => {
         </div>
       </div>
 
-      {/* Summary Cards - clickable for severity filter */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <SummaryCard
-          label="Total de Alertas"
-          value={totalCount}
-          color="text-foreground"
-          active={severityFilter === "all"}
-          onClick={() => handleSeverityCardClick("all")}
-        />
-        <SummaryCard
-          label="Críticos"
-          value={criticalCount}
-          color="text-destructive"
-          active={severityFilter === "critical"}
-          onClick={() => handleSeverityCardClick("critical")}
-        />
-        <SummaryCard
-          label="Atenção"
-          value={warningCount}
-          color="text-warning"
-          active={severityFilter === "warning"}
-          onClick={() => handleSeverityCardClick("warning")}
-        />
-        <SummaryCard
-          label="Positivos"
-          value={positiveCount}
-          color="text-success"
-          active={severityFilter === "positive"}
-          onClick={() => handleSeverityCardClick("positive")}
-        />
-      </div>
-
-      {/* Category Filter */}
-      <div className="flex gap-2 flex-wrap">
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setCategoryFilter(cat)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-              categoryFilter === cat
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/30"
-            }`}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
-
-      {/* Insights List */}
-      <div className="space-y-3">
-        {!isLoaded && !isLoading && (
-          <div className="text-center py-16 bg-card rounded-xl border border-border shadow-[var(--shadow-card)]">
+      {/* Analysis Content */}
+      <div className="bg-card rounded-xl border border-border shadow-[var(--shadow-card)] overflow-hidden">
+        {!analysisContent && !isLoading && (
+          <div className="text-center py-16">
             <Brain className="mx-auto text-muted-foreground/30 mb-4" size={48} />
             <p className="text-muted-foreground font-medium">Clique em "Atualizar Análise" para gerar os insights</p>
-            <p className="text-xs text-muted-foreground/70 mt-1">A análise será feita com base nos filtros selecionados</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">A IA analisará seus lançamentos reais e gerará um relatório completo</p>
           </div>
         )}
-        {isLoading && (
-          <div className="text-center py-16 bg-card rounded-xl border border-border shadow-[var(--shadow-card)]">
+        {isLoading && !analysisContent && (
+          <div className="text-center py-16">
             <Loader2 className="mx-auto text-gold animate-spin mb-4" size={48} />
-            <p className="text-muted-foreground font-medium">Analisando dados financeiros...</p>
-            <p className="text-xs text-muted-foreground/70 mt-1">A IA está processando as informações</p>
+            <p className="text-muted-foreground font-medium">Analisando dados financeiros reais...</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">A IA está processando seus lançamentos</p>
           </div>
         )}
-        {isLoaded && !isLoading && filtered.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground text-sm">
-            Nenhum alerta encontrado para os filtros selecionados.
-          </div>
-        )}
-        {filtered.map((insight) => {
-          const config = severityConfig[insight.severity];
-          return (
-            <div
-              key={insight.id}
-              className={`${config.bg} rounded-xl border ${config.border} p-5 shadow-[var(--shadow-card)] transition-all hover:shadow-[var(--shadow-elevated)]`}
-            >
-              <div className="flex items-start gap-4">
-                <div className={`p-2.5 rounded-lg bg-card border border-border/50 ${config.icon}`}>
-                  {insight.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                    <h3 className="font-heading font-semibold text-sm text-foreground">{insight.title}</h3>
-                    <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${config.badge}`}>
-                      {severityLabels[insight.severity]}
-                    </span>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider bg-gold/15 text-gold px-2 py-0.5 rounded-full">
-                      IA
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{insight.description}</p>
-                  <div className="flex items-center gap-3 mt-3">
-                    <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">{insight.category}</span>
-                    <span className={`text-xs font-semibold font-mono ${
-                      insight.trend.startsWith("+") ? "text-success" : insight.trend.startsWith("-") ? "text-destructive" : "text-muted-foreground"
-                    }`}>
-                      {insight.trend}
-                    </span>
-                  </div>
-                </div>
-              </div>
+        {analysisContent && (
+          <div className="p-6 md:p-8">
+            <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:font-heading prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-li:text-muted-foreground">
+              <ReactMarkdown>{analysisContent}</ReactMarkdown>
             </div>
-          );
-        })}
+            {isLoading && (
+              <div className="flex items-center gap-2 mt-4 text-gold">
+                <Loader2 size={14} className="animate-spin" />
+                <span className="text-xs">Gerando análise...</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
 };
-
-function SummaryCard({ label, value, color, active, onClick }: { label: string; value: number; color: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "bg-card rounded-xl border p-4 shadow-[var(--shadow-card)] text-left transition-all duration-200 hover:shadow-[var(--shadow-elevated)]",
-        active ? "border-primary ring-1 ring-primary/30" : "border-border hover:border-primary/30"
-      )}
-    >
-      <p className={`text-2xl font-bold font-heading ${color}`}>{value}</p>
-      <p className="text-xs text-muted-foreground mt-1">{label}</p>
-    </button>
-  );
-}
 
 export default Insights;
