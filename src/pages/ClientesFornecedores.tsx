@@ -184,40 +184,6 @@ const ClientesFornecedores = () => {
         <DialogHeader><DialogTitle>{editItem && items.some(i => i.id === editItem.id) ? "Editar" : "Novo"} {tipo}</DialogTitle></DialogHeader>
         {editItem && (
           <div className="space-y-5 pt-2">
-            {/* Logo Upload */}
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                {editItem.logoUrl ? (
-                  <img src={editItem.logoUrl} alt="Logo" className="w-16 h-16 rounded-xl object-cover border-2 border-border" />
-                ) : (
-                  <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center border-2 border-dashed border-border">
-                    <Upload size={20} className="text-muted-foreground" />
-                  </div>
-                )}
-              </div>
-              <div>
-                <input
-                  ref={logoInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => handleLogoUpload(e, setEditItem, editItem)}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => logoInputRef.current?.click()}
-                >
-                  <Upload size={14} />
-                  {editItem.logoUrl ? "Trocar Logo" : "Upload de Logo"}
-                </Button>
-                <p className="text-[10px] text-muted-foreground mt-1">Usado nos relatórios e papel timbrado</p>
-              </div>
-            </div>
-
-            <Separator />
-
             {/* Dados Pessoais */}
             <div>
               <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Dados Cadastrais</h3>
