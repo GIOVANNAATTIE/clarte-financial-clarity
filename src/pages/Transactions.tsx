@@ -146,26 +146,29 @@ const Transactions = () => {
     }
   };
 
-  const handleOFXImport = async (file: File) => {
-    setImporting(true);
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const content = e.target?.result as string;
-        const parsed = parseOFX(content);
+   const handleOFXImport = async (file: File) => {
+     setImporting(true);
 
-        if (parsed.length === 0) {
-          toast({ title: "Nenhuma transação encontrada", description: "O arquivo OFX não contém transações válidas.", variant: "destructive" });
-          setImporting(false);
-          return;
-        }
+     // Obter user_id ANTES do FileReader para evitar perda de sessão
+     const { data: { session } } = await supabase.auth.getSession();
+     const userId = session?.user?.id;
+     if (!userId) {
+       toast({ title: "Usuário não identificado", description: "Faça login novamente para importar.", variant: "destructive" });
+       setImporting(false);
+       return;
+     }
 
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          toast({ title: "Usuário não autenticado", variant: "destructive" });
-          setImporting(false);
-          return;
-        }
+     const reader = new FileReader();
+     reader.onload = async (e) => {
+       try {
+         const content = e.target?.result as string;
+         const parsed = parseOFX(content);
+ 
+         if (parsed.length === 0) {
+           toast({ title: "Nenhuma transação encontrada", description: "O arquivo OFX não contém transações válidas.", variant: "destructive" });
+           setImporting(false);
+           return;
+         }
 
         // For each parsed transaction, check/create entity and insert
         let created = 0;
