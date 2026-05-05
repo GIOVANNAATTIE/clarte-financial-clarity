@@ -6,6 +6,19 @@ export type ClienteFornecedor = {
   tipo: "cliente" | "fornecedor";
   documento: string;
   contato: string;
+  email: string;
+  telefone: string;
+  cep: string;
+  endereco: string;
+  bairro: string;
+  cidade: string;
+  estado: string;
+  banco: string;
+  agencia: string;
+  conta: string;
+  tipoConta: string;
+  chavePix: string;
+  logoUrl: string;
 };
 
 export type Categoria = {
