@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,66 +20,15 @@ import { cn } from "@/lib/utils";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { supabase } from "@/integrations/supabase/client";
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
 const formatPercent = (value: number) => `${value.toFixed(2)}%`;
 
-// --- Mock transaction data by category type ---
-type MockEntry = { label: string; valor: number; tipo: "receita" | "custo" | "despesa" };
-
-const mockTransactionsByMonth: Record<string, MockEntry[]> = {
-  "2026-01": [
-    { label: "Faturamento de Serviços", valor: 95000, tipo: "receita" },
-    { label: "Venda de Produtos", valor: 40000, tipo: "receita" },
-    { label: "Prestadores de Serviço", valor: -28000, tipo: "custo" },
-    { label: "Tecnologia de Operação", valor: -8500, tipo: "custo" },
-    { label: "Benefícios / RH", valor: -12000, tipo: "despesa" },
-    { label: "Imóveis / Aluguel", valor: -6000, tipo: "despesa" },
-    { label: "Gastos Gerais", valor: -4500, tipo: "despesa" },
-  ],
-  "2026-02": [
-    { label: "Faturamento de Serviços", valor: 110000, tipo: "receita" },
-    { label: "Venda de Produtos", valor: 52000, tipo: "receita" },
-    { label: "Prestadores de Serviço", valor: -32000, tipo: "custo" },
-    { label: "Tecnologia de Operação", valor: -9200, tipo: "custo" },
-    { label: "Benefícios / RH", valor: -13500, tipo: "despesa" },
-    { label: "Imóveis / Aluguel", valor: -6000, tipo: "despesa" },
-    { label: "Gastos Gerais", valor: -5100, tipo: "despesa" },
-  ],
-  "2026-03": [
-    { label: "Faturamento de Serviços", valor: 105000, tipo: "receita" },
-    { label: "Venda de Produtos", valor: 48000, tipo: "receita" },
-    { label: "Prestadores de Serviço", valor: -30000, tipo: "custo" },
-    { label: "Tecnologia de Operação", valor: -9000, tipo: "custo" },
-    { label: "Benefícios / RH", valor: -12800, tipo: "despesa" },
-    { label: "Imóveis / Aluguel", valor: -6000, tipo: "despesa" },
-    { label: "Gastos Gerais", valor: -4800, tipo: "despesa" },
-  ],
-  "2026-04": [
-    { label: "Faturamento de Serviços", valor: 120000, tipo: "receita" },
-    { label: "Venda de Produtos", valor: 45000, tipo: "receita" },
-    { label: "Prestadores de Serviço", valor: -35000, tipo: "custo" },
-    { label: "Tecnologia de Operação", valor: -10000, tipo: "custo" },
-    { label: "Benefícios / RH", valor: -14000, tipo: "despesa" },
-    { label: "Imóveis / Aluguel", valor: -6500, tipo: "despesa" },
-    { label: "Gastos Gerais", valor: -5200, tipo: "despesa" },
-  ],
-  "2026-05": [
-    { label: "Faturamento de Serviços", valor: 115000, tipo: "receita" },
-    { label: "Venda de Produtos", valor: 50000, tipo: "receita" },
-    { label: "Prestadores de Serviço", valor: -33000, tipo: "custo" },
-    { label: "Tecnologia de Operação", valor: -9500, tipo: "custo" },
-    { label: "Benefícios / RH", valor: -13200, tipo: "despesa" },
-    { label: "Imóveis / Aluguel", valor: -6000, tipo: "despesa" },
-    { label: "Gastos Gerais", valor: -4900, tipo: "despesa" },
-  ],
-};
-
 // Default tax rates by regime
 type TaxRegime = "simples" | "presumido" | "real";
-
 type TaxRates = { pis: number; cofins: number; iss: number };
 
 const defaultTaxRates: Record<TaxRegime, TaxRates> = {
@@ -113,6 +62,15 @@ const years = ["2024", "2025", "2026"];
 
 type FilterMode = "mes" | "ano" | "periodo";
 
+type RawTx = {
+  date: string;
+  value: number;
+  status: string;
+  category_id: string | null;
+  category_name?: string;
+  category_type?: string;
+};
+
 const DRE = () => {
   const [filterMode, setFilterMode] = useState<FilterMode>("mes");
   const [selectedMonth, setSelectedMonth] = useState("04");
@@ -125,46 +83,76 @@ const DRE = () => {
   const [taxDialogOpen, setTaxDialogOpen] = useState(false);
   const [editingRates, setEditingRates] = useState<TaxRates>({ pis: 0, cofins: 0, iss: 0 });
 
+  const [transactions, setTransactions] = useState<RawTx[]>([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const [txRes, catRes] = await Promise.all([
+        supabase.from("transactions").select("date, value, status, category_id").eq("user_id", user.id),
+        supabase.from("categories").select("id, name, type").eq("user_id", user.id),
+      ]);
+
+      const catMap = new Map<string, { name: string; type: string }>();
+      catRes.data?.forEach(c => catMap.set(c.id, { name: c.name, type: c.type }));
+
+      if (txRes.data) {
+        setTransactions(txRes.data.map(t => ({
+          ...t,
+          category_name: t.category_id ? catMap.get(t.category_id)?.name || "" : "",
+          category_type: t.category_id ? catMap.get(t.category_id)?.type || "" : "",
+        })));
+      }
+    };
+    fetchData();
+  }, []);
+
   const currentRates = taxRates[regime];
 
-  // Aggregate data based on filter
-  const aggregatedData = useMemo(() => {
-    let relevantMonths: string[] = [];
-
+  // Filter active (non-cancelled) transactions by period
+  const filteredTx = useMemo(() => {
+    const active = transactions.filter(t => t.status !== "cancelado");
     if (filterMode === "mes") {
-      relevantMonths = [`${selectedYear}-${selectedMonth}`];
+      return active.filter(t => t.date.startsWith(`${selectedYear}-${selectedMonth}`));
     } else if (filterMode === "ano") {
-      relevantMonths = Object.keys(mockTransactionsByMonth).filter(k => k.startsWith(selectedYear));
+      return active.filter(t => t.date.startsWith(selectedYear));
     } else if (filterMode === "periodo" && dateFrom && dateTo) {
-      relevantMonths = Object.keys(mockTransactionsByMonth).filter(k => {
-        const [y, m] = k.split("-");
-        const monthDate = new Date(parseInt(y), parseInt(m) - 1, 1);
-        return monthDate >= new Date(dateFrom.getFullYear(), dateFrom.getMonth(), 1) &&
-               monthDate <= new Date(dateTo.getFullYear(), dateTo.getMonth(), 1);
-      });
-    } else if (filterMode === "periodo") {
-      relevantMonths = [];
+      const fromStr = format(dateFrom, "yyyy-MM-dd");
+      const toStr = format(dateTo, "yyyy-MM-dd");
+      return active.filter(t => t.date >= fromStr && t.date <= toStr);
     }
+    return [];
+  }, [transactions, filterMode, selectedMonth, selectedYear, dateFrom, dateTo]);
 
-    const combined: Record<string, MockEntry> = {};
-    relevantMonths.forEach(month => {
-      const entries = mockTransactionsByMonth[month] || [];
-      entries.forEach(entry => {
-        if (combined[entry.label]) {
-          combined[entry.label] = { ...combined[entry.label], valor: combined[entry.label].valor + entry.valor };
+  // Group by category for DRE
+  const { receitas, custos, despesas } = useMemo(() => {
+    const recMap: Record<string, number> = {};
+    const custoMap: Record<string, number> = {};
+    const despMap: Record<string, number> = {};
+
+    filteredTx.forEach(t => {
+      const label = t.category_name || (t.value >= 0 ? "Receitas sem categoria" : "Despesas sem categoria");
+      if (t.value >= 0) {
+        recMap[label] = (recMap[label] || 0) + t.value;
+      } else {
+        // Use category type to distinguish custo vs despesa if available
+        const catType = t.category_type || "despesa";
+        if (catType === "custo") {
+          custoMap[label] = (custoMap[label] || 0) + Math.abs(t.value);
         } else {
-          combined[entry.label] = { ...entry };
+          despMap[label] = (despMap[label] || 0) + Math.abs(t.value);
         }
-      });
+      }
     });
 
-    return Object.values(combined);
-  }, [filterMode, selectedMonth, selectedYear, dateFrom, dateTo]);
-
-  // Calculations
-  const receitas = aggregatedData.filter(e => e.tipo === "receita");
-  const custos = aggregatedData.filter(e => e.tipo === "custo");
-  const despesas = aggregatedData.filter(e => e.tipo === "despesa");
+    return {
+      receitas: Object.entries(recMap).map(([label, valor]) => ({ label, valor })),
+      custos: Object.entries(custoMap).map(([label, valor]) => ({ label, valor })),
+      despesas: Object.entries(despMap).map(([label, valor]) => ({ label, valor })),
+    };
+  }, [filteredTx]);
 
   const faturamentoBruto = receitas.reduce((s, e) => s + e.valor, 0);
 
@@ -175,13 +163,12 @@ const DRE = () => {
 
   const receitaLiquida = faturamentoBruto - totalDeducoes;
 
-  const totalCustos = custos.reduce((s, e) => s + Math.abs(e.valor), 0);
+  const totalCustos = custos.reduce((s, e) => s + e.valor, 0);
   const lucroBruto = receitaLiquida - totalCustos;
 
-  const totalDespesas = despesas.reduce((s, e) => s + Math.abs(e.valor), 0);
+  const totalDespesas = despesas.reduce((s, e) => s + e.valor, 0);
   const lucroLiquido = lucroBruto - totalDespesas;
 
-  // Margins
   const margemBruta = faturamentoBruto > 0 ? (lucroBruto / faturamentoBruto) * 100 : 0;
   const margemLiquida = faturamentoBruto > 0 ? (lucroLiquido / faturamentoBruto) * 100 : 0;
 
@@ -392,30 +379,31 @@ const DRE = () => {
                   </td>
                 </tr>
               ))}
-
-              <ResultRow label="= Receita Líquida" value={receitaLiquida} bold highlight
-                tooltip="Faturamento Bruto menos impostos (PIS + COFINS + ISS)" />
+              <ResultRow label="= Receita Líquida" value={receitaLiquida} bold tooltip="Faturamento Bruto menos impostos sobre receita" />
 
               {/* CUSTOS */}
               <tr className="bg-muted/10">
                 <td colSpan={3} className="px-5 py-2.5 text-xs font-bold text-foreground uppercase tracking-wider">
-                  (−) Custos Diretos (CMV/CSP)
+                  (−) Custos dos Serviços / Produtos
                 </td>
               </tr>
               {custos.map(item => (
                 <tr key={item.label} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
                   <td className="px-5 py-3 text-sm text-foreground pl-10">{item.label}</td>
-                  <td className="px-5 py-3 text-sm font-mono text-center text-destructive">{formatCurrency(item.valor)}</td>
+                  <td className="px-5 py-3 text-sm font-mono text-center text-destructive">{formatCurrency(-item.valor)}</td>
                   <td className="px-5 py-3 text-sm text-center text-muted-foreground">
-                    {faturamentoBruto > 0 ? formatPercent((Math.abs(item.valor) / faturamentoBruto) * 100) : "—"}
+                    {faturamentoBruto > 0 ? formatPercent((item.valor / faturamentoBruto) * 100) : "—"}
                   </td>
                 </tr>
               ))}
+              {custos.length === 0 && (
+                <tr className="border-b border-border/30">
+                  <td colSpan={3} className="px-5 py-3 text-sm text-muted-foreground pl-10 italic">Nenhum custo categorizado</td>
+                </tr>
+              )}
+              <ResultRow label="= Lucro Bruto" value={lucroBruto} bold highlight tooltip="Receita Líquida menos custos diretos" />
 
-              <ResultRow label="= Lucro Bruto (Margem de Contribuição)" value={lucroBruto} bold highlight
-                tooltip="Receita Líquida menos Custos Diretos" />
-
-              {/* DESPESAS */}
+              {/* DESPESAS OPERACIONAIS */}
               <tr className="bg-muted/10">
                 <td colSpan={3} className="px-5 py-2.5 text-xs font-bold text-foreground uppercase tracking-wider">
                   (−) Despesas Operacionais
@@ -424,84 +412,54 @@ const DRE = () => {
               {despesas.map(item => (
                 <tr key={item.label} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
                   <td className="px-5 py-3 text-sm text-foreground pl-10">{item.label}</td>
-                  <td className="px-5 py-3 text-sm font-mono text-center text-destructive">{formatCurrency(item.valor)}</td>
+                  <td className="px-5 py-3 text-sm font-mono text-center text-destructive">{formatCurrency(-item.valor)}</td>
                   <td className="px-5 py-3 text-sm text-center text-muted-foreground">
-                    {faturamentoBruto > 0 ? formatPercent((Math.abs(item.valor) / faturamentoBruto) * 100) : "—"}
+                    {faturamentoBruto > 0 ? formatPercent((item.valor / faturamentoBruto) * 100) : "—"}
                   </td>
                 </tr>
               ))}
+              {despesas.length === 0 && (
+                <tr className="border-b border-border/30">
+                  <td colSpan={3} className="px-5 py-3 text-sm text-muted-foreground pl-10 italic">Nenhuma despesa categorizada</td>
+                </tr>
+              )}
 
-              <ResultRow label="= LAIR / Lucro Líquido" value={lucroLiquido} bold highlight
-                tooltip="Lucro Bruto menos Despesas Operacionais" />
-
-              {/* MARGENS */}
-              <tr className="bg-muted/10">
-                <td colSpan={3} className="px-5 py-2.5 text-xs font-bold text-foreground uppercase tracking-wider">
-                  Indicadores
-                </td>
-              </tr>
-              <tr className="border-b border-border/30">
-                <td className="px-5 py-3 text-sm text-foreground pl-10">Margem Bruta</td>
-                <td className={cn("px-5 py-3 text-sm font-mono text-center font-medium", margemBruta >= 0 ? "text-success" : "text-destructive")}>
-                  {formatPercent(margemBruta)}
-                </td>
-                <td className="px-5 py-3 text-sm text-center text-muted-foreground">—</td>
-              </tr>
-              <tr className="border-b border-border/30">
-                <td className="px-5 py-3 text-sm text-foreground pl-10">Margem Líquida</td>
-                <td className={cn("px-5 py-3 text-sm font-mono text-center font-medium", margemLiquida >= 0 ? "text-success" : "text-destructive")}>
+              {/* RESULTADO */}
+              <ResultRow label="= Lucro Líquido" value={lucroLiquido} bold highlight tooltip="Resultado final após todas as deduções" />
+              <tr className="border-t border-border bg-muted/20">
+                <td className="px-5 py-3 text-sm font-semibold text-foreground">Margem Líquida</td>
+                <td className={cn("px-5 py-3 text-sm font-mono text-center font-bold", margemLiquida >= 0 ? "text-success" : "text-destructive")}>
                   {formatPercent(margemLiquida)}
                 </td>
-                <td className="px-5 py-3 text-sm text-center text-muted-foreground">—</td>
+                <td className="px-5 py-3"></td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Tax Rates Dialog */}
+      {/* Tax Dialog */}
       <Dialog open={taxDialogOpen} onOpenChange={setTaxDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Alíquotas de Impostos — {regimeLabels[regime]}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
-            <p className="text-xs text-muted-foreground">
-              Edite as alíquotas abaixo conforme o regime tributário selecionado. As alterações serão aplicadas imediatamente ao DRE.
-            </p>
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label className="text-sm">PIS (%)</Label>
-                <Input
-                  type="number" step="0.01" min="0" max="100"
-                  value={editingRates.pis}
-                  onChange={(e) => setEditingRates(prev => ({ ...prev, pis: parseFloat(e.target.value) || 0 }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm">COFINS (%)</Label>
-                <Input
-                  type="number" step="0.01" min="0" max="100"
-                  value={editingRates.cofins}
-                  onChange={(e) => setEditingRates(prev => ({ ...prev, cofins: parseFloat(e.target.value) || 0 }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm">ISS (%)</Label>
-                <Input
-                  type="number" step="0.01" min="0" max="100"
-                  value={editingRates.iss}
-                  onChange={(e) => setEditingRates(prev => ({ ...prev, iss: parseFloat(e.target.value) || 0 }))}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label>PIS (%)</Label>
+              <Input type="number" step="0.01" value={editingRates.pis} onChange={(e) => setEditingRates({ ...editingRates, pis: parseFloat(e.target.value) || 0 })} />
             </div>
-            <div className="bg-muted/30 rounded-lg p-3 text-xs text-muted-foreground space-y-1">
-              <p><strong>Total Deduções:</strong> {formatPercent(editingRates.pis + editingRates.cofins + editingRates.iss)}</p>
-              <p><strong>Impacto estimado:</strong> {formatCurrency(faturamentoBruto * ((editingRates.pis + editingRates.cofins + editingRates.iss) / 100))}</p>
+            <div className="space-y-2">
+              <Label>COFINS (%)</Label>
+              <Input type="number" step="0.01" value={editingRates.cofins} onChange={(e) => setEditingRates({ ...editingRates, cofins: parseFloat(e.target.value) || 0 })} />
+            </div>
+            <div className="space-y-2">
+              <Label>ISS (%)</Label>
+              <Input type="number" step="0.01" value={editingRates.iss} onChange={(e) => setEditingRates({ ...editingRates, iss: parseFloat(e.target.value) || 0 })} />
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" onClick={() => setTaxDialogOpen(false)}>Cancelar</Button>
-              <Button onClick={saveTaxRates}>Salvar Alíquotas</Button>
+              <Button onClick={saveTaxRates}>Salvar</Button>
             </div>
           </div>
         </DialogContent>
