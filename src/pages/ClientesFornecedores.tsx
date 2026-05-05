@@ -32,7 +32,6 @@ const emptyEntity = (tipo: "cliente" | "fornecedor"): ClienteFornecedor => ({
   conta: "",
   tipoConta: "",
   chavePix: "",
-  logoUrl: "",
 });
 
 const ClientesFornecedores = () => {
