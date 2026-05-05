@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -9,39 +10,43 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, Search, CalendarIcon, ArrowUpDown, ArrowUp, ArrowDown, Filter, Clock, CheckCircle2, AlertCircle } from "lucide-react";
+import { Plus, Search, CalendarIcon, ArrowUpDown, ArrowUp, ArrowDown, Filter, Clock, CheckCircle2, AlertCircle, Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 type Lancamento = {
-  id: number;
-  tipo: "pagar" | "receber";
-  descricao: string;
-  pessoa: string;
+  id: string;
+  tipo: string;
+  descricao: string | null;
+  entity_id: string | null;
+  entity_name: string;
   categoria: string;
+  category_id: string | null;
+  centro_custo: string;
+  cost_center_id: string | null;
   valor: number;
   vencimento: string;
-  pagamento?: string;
-  status: "aberto" | "pago" | "vencido";
+  status: string;
 };
 
-const mockLancamentos: Lancamento[] = [
-  { id: 1, tipo: "receber", descricao: "Fatura #1042", pessoa: "Cliente ABC Ltda", categoria: "Receitas", valor: 15800, vencimento: "2026-05-10", status: "aberto" },
-  { id: 2, tipo: "receber", descricao: "Consultoria Março", pessoa: "Tech Solutions", categoria: "Serviços", valor: 9200, vencimento: "2026-04-25", status: "vencido" },
-  { id: 3, tipo: "receber", descricao: "Fatura #1038", pessoa: "MKPlace", categoria: "Receitas", valor: 23500, vencimento: "2026-04-15", pagamento: "2026-04-14", status: "pago" },
-  { id: 4, tipo: "pagar", descricao: "Aluguel Maio", pessoa: "Imobiliária Central", categoria: "Infraestrutura", valor: 8500, vencimento: "2026-05-05", status: "aberto" },
-  { id: 5, tipo: "pagar", descricao: "Energia Elétrica", pessoa: "CPFL Energia", categoria: "Utilidades", valor: 3200, vencimento: "2026-04-20", status: "vencido" },
-  { id: 6, tipo: "pagar", descricao: "Fornecedor Materiais", pessoa: "Distribuidora XYZ", categoria: "Fornecedores", valor: 12450, vencimento: "2026-05-15", status: "aberto" },
-  { id: 7, tipo: "pagar", descricao: "Internet", pessoa: "Vivo Empresas", categoria: "Utilidades", valor: 890, vencimento: "2026-04-28", pagamento: "2026-04-27", status: "pago" },
-  { id: 8, tipo: "receber", descricao: "Parcela 4/6", pessoa: "Grupo Horizonte", categoria: "Receitas", valor: 7600, vencimento: "2026-05-20", status: "aberto" },
-];
+type Entity = { id: string; name: string; type: string; default_category_id: string | null };
+type Category = { id: string; name: string; type: string };
+type CostCenter = { id: string; name: string };
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -50,9 +55,11 @@ const statusConfig: Record<string, { label: string; style: string; icon: React.E
   aberto: { label: "Aberto", style: "bg-warning/10 text-warning", icon: Clock },
   pago: { label: "Pago", style: "bg-success/10 text-success", icon: CheckCircle2 },
   vencido: { label: "Vencido", style: "bg-destructive/10 text-destructive", icon: AlertCircle },
+  pendente: { label: "Pendente", style: "bg-warning/10 text-warning", icon: Clock },
+  conciliado: { label: "Conciliado", style: "bg-success/10 text-success", icon: CheckCircle2 },
 };
 
-type SortField = "descricao" | "pessoa" | "valor" | "vencimento" | "status";
+type SortField = "entity_name" | "descricao" | "categoria" | "centro_custo" | "valor" | "status";
 type SortDir = "asc" | "desc";
 
 const Lancamentos = () => {
@@ -61,8 +68,85 @@ const Lancamentos = () => {
   const [statusFilter, setStatusFilter] = useState("todos");
   const [dateFrom, setDateFrom] = useState<Date>();
   const [dateTo, setDateTo] = useState<Date>();
-  const [sortField, setSortField] = useState<SortField>("vencimento");
+  const [sortField, setSortField] = useState<SortField>("entity_name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
+  const [entities, setEntities] = useState<Entity[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editItem, setEditItem] = useState<Lancamento | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // New/edit form
+  const [form, setForm] = useState({
+    entity_id: "",
+    descricao: "",
+    category_id: "",
+    cost_center_id: "",
+    valor: "",
+    vencimento: new Date().toISOString().split("T")[0],
+    tipo: "receber",
+    status: "pendente",
+  });
+
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const [txRes, entRes, catRes, ccRes] = await Promise.all([
+        supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }),
+        supabase.from("entities").select("id, name, type, default_category_id").eq("user_id", user.id),
+        supabase.from("categories").select("id, name, type").eq("user_id", user.id),
+        supabase.from("cost_centers").select("id, name").eq("user_id", user.id),
+      ]);
+      if (entRes.data) setEntities(entRes.data);
+      if (catRes.data) setCategories(catRes.data);
+      if (ccRes.data) setCostCenters(ccRes.data);
+      if (txRes.data) {
+        setLancamentos(txRes.data.map((t) => ({
+          id: t.id,
+          tipo: t.type === "entrada" ? "receber" : "pagar",
+          descricao: t.description,
+          entity_id: t.entity_id,
+          entity_name: entRes.data?.find((e) => e.id === t.entity_id)?.name || "",
+          categoria: catRes.data?.find((c) => c.id === t.category_id)?.name || "",
+          category_id: t.category_id,
+          centro_custo: ccRes.data?.find((cc) => cc.id === t.cost_center_id)?.name || "",
+          cost_center_id: t.cost_center_id,
+          valor: Math.abs(t.value),
+          vencimento: t.date,
+          status: t.status,
+        })));
+      }
+    };
+    fetchData();
+  }, []);
+
+  const refresh = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data } = await supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false });
+    if (data) {
+      setLancamentos(data.map((t) => ({
+        id: t.id,
+        tipo: t.type === "entrada" ? "receber" : "pagar",
+        descricao: t.description,
+        entity_id: t.entity_id,
+        entity_name: entities.find((e) => e.id === t.entity_id)?.name || "",
+        categoria: categories.find((c) => c.id === t.category_id)?.name || "",
+        category_id: t.category_id,
+        centro_custo: costCenters.find((cc) => cc.id === t.cost_center_id)?.name || "",
+        cost_center_id: t.cost_center_id,
+        valor: Math.abs(t.value),
+        vencimento: t.date,
+        status: t.status,
+      })));
+    }
+  };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir(sortDir === "asc" ? "desc" : "asc");
@@ -74,10 +158,10 @@ const Lancamentos = () => {
     return sortDir === "asc" ? <ArrowUp size={12} className="text-gold" /> : <ArrowDown size={12} className="text-gold" />;
   };
 
-  const filtered = mockLancamentos
+  const filtered = lancamentos
     .filter((l) => {
-      if (l.tipo !== tab) return false;
-      const matchSearch = l.descricao.toLowerCase().includes(search.toLowerCase()) || l.pessoa.toLowerCase().includes(search.toLowerCase());
+      if ((tab === "receber" && l.tipo !== "receber") || (tab === "pagar" && l.tipo !== "pagar")) return false;
+      const matchSearch = (l.descricao || "").toLowerCase().includes(search.toLowerCase()) || l.entity_name.toLowerCase().includes(search.toLowerCase());
       const matchStatus = statusFilter === "todos" || l.status === statusFilter;
       const vDate = new Date(l.vencimento);
       const matchFrom = !dateFrom || vDate >= dateFrom;
@@ -86,17 +170,109 @@ const Lancamentos = () => {
     })
     .sort((a, b) => {
       let cmp = 0;
-      if (sortField === "vencimento") cmp = a.vencimento.localeCompare(b.vencimento);
-      else if (sortField === "descricao") cmp = a.descricao.localeCompare(b.descricao);
-      else if (sortField === "pessoa") cmp = a.pessoa.localeCompare(b.pessoa);
+      if (sortField === "entity_name") cmp = a.entity_name.localeCompare(b.entity_name);
+      else if (sortField === "descricao") cmp = (a.descricao || "").localeCompare(b.descricao || "");
+      else if (sortField === "categoria") cmp = a.categoria.localeCompare(b.categoria);
+      else if (sortField === "centro_custo") cmp = a.centro_custo.localeCompare(b.centro_custo);
       else if (sortField === "valor") cmp = a.valor - b.valor;
       else if (sortField === "status") cmp = a.status.localeCompare(b.status);
       return sortDir === "asc" ? cmp : -cmp;
     });
 
-  const totalAberto = filtered.filter(l => l.status === "aberto").reduce((s, l) => s + l.valor, 0);
+  const totalPendente = filtered.filter(l => l.status === "pendente" || l.status === "aberto").reduce((s, l) => s + l.valor, 0);
   const totalVencido = filtered.filter(l => l.status === "vencido").reduce((s, l) => s + l.valor, 0);
-  const totalPago = filtered.filter(l => l.status === "pago").reduce((s, l) => s + l.valor, 0);
+  const totalPago = filtered.filter(l => l.status === "pago" || l.status === "conciliado").reduce((s, l) => s + l.valor, 0);
+
+  const openNew = () => {
+    setEditItem(null);
+    setForm({
+      entity_id: "",
+      descricao: "",
+      category_id: "",
+      cost_center_id: "",
+      valor: "",
+      vencimento: new Date().toISOString().split("T")[0],
+      tipo: tab,
+      status: "pendente",
+    });
+    setDialogOpen(true);
+  };
+
+  const openEdit = (l: Lancamento) => {
+    setEditItem(l);
+    setForm({
+      entity_id: l.entity_id || "",
+      descricao: l.descricao || "",
+      category_id: l.category_id || "",
+      cost_center_id: l.cost_center_id || "",
+      valor: l.valor.toString(),
+      vencimento: l.vencimento,
+      tipo: l.tipo,
+      status: l.status,
+    });
+    setDialogOpen(true);
+  };
+
+  const handleEntityChange = (entityId: string) => {
+    const entity = entities.find((e) => e.id === entityId);
+    setForm((prev) => ({
+      ...prev,
+      entity_id: entityId,
+      category_id: entity?.default_category_id || prev.category_id,
+    }));
+  };
+
+  const handleSave = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const numericValue = parseFloat(form.valor) || 0;
+    const type = form.tipo === "receber" ? "entrada" : "saida";
+    const finalValue = type === "saida" ? -Math.abs(numericValue) : Math.abs(numericValue);
+
+    const payload = {
+      user_id: user.id,
+      date: form.vencimento,
+      description: form.descricao,
+      entity_id: form.entity_id || null,
+      category_id: form.category_id || null,
+      cost_center_id: form.cost_center_id || null,
+      value: finalValue,
+      type,
+      status: form.status,
+    };
+
+    if (editItem) {
+      const { error } = await supabase.from("transactions").update(payload).eq("id", editItem.id);
+      if (error) { toast({ title: "Erro ao salvar", variant: "destructive" }); return; }
+      toast({ title: "Lançamento atualizado" });
+    } else {
+      const { error } = await supabase.from("transactions").insert(payload);
+      if (error) { toast({ title: "Erro ao criar", variant: "destructive" }); return; }
+      toast({ title: "Lançamento criado" });
+    }
+    setDialogOpen(false);
+    await refresh();
+  };
+
+  const confirmDelete = async () => {
+    if (deleteId) {
+      await supabase.from("transactions").delete().eq("id", deleteId);
+      toast({ title: "Lançamento excluído" });
+      await refresh();
+    }
+    setDeleteOpen(false);
+    setDeleteId(null);
+  };
+
+  const clearFilters = () => {
+    setSearch("");
+    setStatusFilter("todos");
+    setDateFrom(undefined);
+    setDateTo(undefined);
+  };
+
+  const hasFilters = search || statusFilter !== "todos" || dateFrom || dateTo;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -105,7 +281,7 @@ const Lancamentos = () => {
           <h1 className="font-heading text-2xl font-bold text-foreground">Lançamentos</h1>
           <p className="text-sm text-muted-foreground mt-1">Contas a pagar e a receber</p>
         </div>
-        <Button variant="hero" size="lg" className="gap-2">
+        <Button variant="hero" size="lg" className="gap-2" onClick={openNew}>
           <Plus size={18} />
           Novo Lançamento
         </Button>
@@ -113,26 +289,21 @@ const Lancamentos = () => {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full sm:w-auto">
-          <TabsTrigger value="receber" className="flex-1 sm:flex-none gap-2">
-            <ArrowDown size={14} className="text-success" /> Contas a Receber
-          </TabsTrigger>
-          <TabsTrigger value="pagar" className="flex-1 sm:flex-none gap-2">
-            <ArrowUp size={14} className="text-destructive" /> Contas a Pagar
-          </TabsTrigger>
+          <TabsTrigger value="receber" className="flex-1 sm:flex-none gap-2">Contas a Receber</TabsTrigger>
+          <TabsTrigger value="pagar" className="flex-1 sm:flex-none gap-2">Contas a Pagar</TabsTrigger>
         </TabsList>
 
-        {/* Summary cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
           <div className="bg-card rounded-xl border border-border p-4 shadow-[var(--shadow-card)]">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Em Aberto</p>
-            <p className="text-xl font-bold text-warning mt-1">{formatCurrency(totalAberto)}</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Pendente</p>
+            <p className="text-xl font-bold text-warning mt-1">{formatCurrency(totalPendente)}</p>
           </div>
           <div className="bg-card rounded-xl border border-border p-4 shadow-[var(--shadow-card)]">
             <p className="text-xs text-muted-foreground uppercase tracking-wider">Vencidos</p>
             <p className="text-xl font-bold text-destructive mt-1">{formatCurrency(totalVencido)}</p>
           </div>
           <div className="bg-card rounded-xl border border-border p-4 shadow-[var(--shadow-card)]">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Pagos</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Pagos/Conciliados</p>
             <p className="text-xl font-bold text-success mt-1">{formatCurrency(totalPago)}</p>
           </div>
         </div>
@@ -151,7 +322,8 @@ const Lancamentos = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="aberto">Aberto</SelectItem>
+                <SelectItem value="pendente">Pendente</SelectItem>
+                <SelectItem value="conciliado">Conciliado</SelectItem>
                 <SelectItem value="pago">Pago</SelectItem>
                 <SelectItem value="vencido">Vencido</SelectItem>
               </SelectContent>
@@ -178,6 +350,11 @@ const Lancamentos = () => {
                 <Calendar mode="single" selected={dateTo} onSelect={setDateTo} locale={ptBR} className="p-3 pointer-events-auto" />
               </PopoverContent>
             </Popover>
+            {hasFilters && (
+              <Button variant="ghost" size="sm" className="h-10" onClick={clearFilters}>
+                Limpar filtros
+              </Button>
+            )}
           </div>
         </div>
 
@@ -188,9 +365,10 @@ const Lancamentos = () => {
                 <thead>
                   <tr className="border-b border-border bg-muted/30">
                     {[
-                      { field: "vencimento" as SortField, label: "Vencimento" },
+                      { field: "entity_name" as SortField, label: tab === "receber" ? "Cliente" : "Fornecedor" },
                       { field: "descricao" as SortField, label: "Descrição" },
-                      { field: "pessoa" as SortField, label: tab === "receber" ? "Cliente" : "Fornecedor" },
+                      { field: "categoria" as SortField, label: "Categoria" },
+                      { field: "centro_custo" as SortField, label: "Centro de Custo" },
                       { field: "valor" as SortField, label: "Valor", align: "right" },
                       { field: "status" as SortField, label: "Status", align: "center" },
                     ].map((col) => (
@@ -201,19 +379,19 @@ const Lancamentos = () => {
                         <span className="inline-flex items-center gap-1.5">{col.label}<SortIcon field={col.field} /></span>
                       </th>
                     ))}
+                    <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center w-24">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((l) => {
-                    const sc = statusConfig[l.status];
+                    const sc = statusConfig[l.status] || statusConfig.pendente;
                     const StatusIcon = sc.icon;
                     return (
                       <tr key={l.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                        <td className="px-5 py-3.5 text-sm text-foreground whitespace-nowrap">
-                          {new Date(l.vencimento).toLocaleDateString("pt-BR")}
-                        </td>
-                        <td className="px-5 py-3.5 text-sm text-foreground">{l.descricao}</td>
-                        <td className="px-5 py-3.5 text-sm text-muted-foreground">{l.pessoa}</td>
+                        <td className="px-5 py-3.5 text-sm text-foreground">{l.entity_name || "—"}</td>
+                        <td className="px-5 py-3.5 text-sm text-foreground">{l.descricao || "—"}</td>
+                        <td className="px-5 py-3.5 text-sm text-muted-foreground">{l.categoria || "—"}</td>
+                        <td className="px-5 py-3.5 text-sm text-muted-foreground">{l.centro_custo || "—"}</td>
                         <td className={`px-5 py-3.5 text-sm font-mono text-right font-medium ${tab === "receber" ? "text-success" : "text-destructive"}`}>
                           {formatCurrency(l.valor)}
                         </td>
@@ -223,11 +401,21 @@ const Lancamentos = () => {
                             {sc.label}
                           </span>
                         </td>
+                        <td className="px-5 py-3.5 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(l)}>
+                              <Pencil size={14} />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => { setDeleteId(l.id); setDeleteOpen(true); }}>
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={5} className="px-5 py-12 text-center text-muted-foreground text-sm">Nenhum lançamento encontrado</td></tr>
+                    <tr><td colSpan={7} className="px-5 py-12 text-center text-muted-foreground text-sm">Nenhum lançamento encontrado</td></tr>
                   )}
                 </tbody>
               </table>
@@ -238,6 +426,108 @@ const Lancamentos = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* New/Edit Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>{editItem ? "Editar" : "Novo"} Lançamento</DialogTitle></DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Cliente/Fornecedor</Label>
+              <Select value={form.entity_id || "none"} onValueChange={(v) => handleEntityChange(v === "none" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {entities.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>{e.name} ({e.type})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Descrição</Label>
+              <Input value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} placeholder="Descrição do lançamento" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Categoria</Label>
+                <Select value={form.category_id || "none"} onValueChange={(v) => setForm({ ...form, category_id: v === "none" ? "" : v })}>
+                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhuma</SelectItem>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Centro de Custo</Label>
+                <Select value={form.cost_center_id || "none"} onValueChange={(v) => setForm({ ...form, cost_center_id: v === "none" ? "" : v })}>
+                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {costCenters.map((cc) => (
+                      <SelectItem key={cc.id} value={cc.id}>{cc.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Valor</Label>
+                <Input type="number" step="0.01" min="0" value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} placeholder="0,00" />
+              </div>
+              <div className="space-y-2">
+                <Label>Vencimento</Label>
+                <Input type="date" value={form.vencimento} onChange={(e) => setForm({ ...form, vencimento: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Tipo</Label>
+                <Select value={form.tipo} onValueChange={(v) => setForm({ ...form, tipo: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="receber">A Receber</SelectItem>
+                    <SelectItem value="pagar">A Pagar</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pendente">Pendente</SelectItem>
+                    <SelectItem value="aberto">Aberto</SelectItem>
+                    <SelectItem value="pago">Pago</SelectItem>
+                    <SelectItem value="conciliado">Conciliado</SelectItem>
+                    <SelectItem value="vencido">Vencido</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={handleSave}>Salvar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>Excluir Lançamento</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Tem certeza que deseja excluir?</p>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={confirmDelete}>Excluir</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

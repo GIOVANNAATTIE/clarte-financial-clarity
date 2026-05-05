@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -24,7 +24,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Upload, Search, Brain, Filter, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, FileText, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Upload, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, FileText, MoreHorizontal, Pencil, Trash2, Plus } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
@@ -35,29 +35,26 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { initialClientesFornecedores, initialCategorias, initialCentrosCusto } from "@/data/cadastros";
+import { supabase } from "@/integrations/supabase/client";
 
 type Transaction = {
-  id: number;
-  data: string;
-  descricao: string;
-  categoria: string;
-  centroCusto: string;
-  valor: number;
-  status: "conciliado" | "pendente" | "revisão";
-  aiCategorized: boolean;
+  id: string;
+  date: string;
+  description: string | null;
+  category_id: string | null;
+  cost_center_id: string | null;
+  entity_id: string | null;
+  value: number;
+  type: string;
+  status: string;
+  category_name?: string;
+  cost_center_name?: string;
+  entity_name?: string;
 };
 
-const mockTransactions: Transaction[] = [
-  { id: 1, data: "2026-04-30", descricao: "Fornecedor ABC", categoria: "Fornecedores", centroCusto: "Operações", valor: -12450.0, status: "conciliado", aiCategorized: true },
-  { id: 2, data: "2026-04-29", descricao: "Cliente XYZ", categoria: "Receitas", centroCusto: "Comercial", valor: 28900.0, status: "conciliado", aiCategorized: false },
-  { id: 3, data: "2026-04-28", descricao: "Folha Abril", categoria: "Pessoal", centroCusto: "RH", valor: -45320.0, status: "conciliado", aiCategorized: true },
-  { id: 4, data: "2026-04-27", descricao: "Sede Administrativa", categoria: "Infraestrutura", centroCusto: "Administrativo", valor: -8500.0, status: "pendente", aiCategorized: true },
-  { id: 5, data: "2026-04-26", descricao: "Produto Premium", categoria: "Receitas", centroCusto: "Comercial", valor: 15750.0, status: "conciliado", aiCategorized: false },
-  { id: 6, data: "2026-04-25", descricao: "Consultoria Silva", categoria: "Serviços", centroCusto: "Projetos", valor: -6200.0, status: "revisão", aiCategorized: true },
-  { id: 7, data: "2026-04-24", descricao: "Parcela 3/6", categoria: "Receitas", centroCusto: "Comercial", valor: 9800.0, status: "pendente", aiCategorized: false },
-  { id: 8, data: "2026-04-23", descricao: "Material de Escritório", categoria: "Materiais", centroCusto: "Administrativo", valor: -1230.0, status: "conciliado", aiCategorized: true },
-];
+type Entity = { id: string; name: string; type: string; default_category_id: string | null };
+type Category = { id: string; name: string; type: string };
+type CostCenter = { id: string; name: string };
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -68,8 +65,7 @@ const statusStyles: Record<string, string> = {
   "revisão": "bg-destructive/10 text-destructive",
 };
 
-
-type SortField = "data" | "descricao" | "categoria" | "centroCusto" | "valor" | "status";
+type SortField = "date" | "description" | "category" | "costCenter" | "value" | "status";
 type SortDir = "asc" | "desc";
 
 const Transactions = () => {
@@ -79,26 +75,81 @@ const Transactions = () => {
   const [costCenterFilter, setCostCenterFilter] = useState("todos");
   const [dateFrom, setDateFrom] = useState<Date>();
   const [dateTo, setDateTo] = useState<Date>();
-  const [sortField, setSortField] = useState<SortField>("data");
+  const [sortField, setSortField] = useState<SortField>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [importOpen, setImportOpen] = useState(false);
-  const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [entities, setEntities] = useState<Entity[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
   const [editOpen, setEditOpen] = useState(false);
   const [editTransaction, setEditTransaction] = useState<Transaction | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
-  const [importedFileName, setImportedFileName] = useState("");
+  const [newOpen, setNewOpen] = useState(false);
+  const [newTransaction, setNewTransaction] = useState({
+    date: new Date().toISOString().split("T")[0],
+    description: "",
+    entity_id: "",
+    category_id: "",
+    cost_center_id: "",
+    value: "",
+    type: "entrada",
+    status: "pendente",
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const knownEntities = initialClientesFornecedores.map(e => e.nome.toLowerCase());
+  // Fetch data
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-  const handleOFXImport = (file: File) => {
+      const [txRes, entRes, catRes, ccRes] = await Promise.all([
+        supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }),
+        supabase.from("entities").select("id, name, type, default_category_id").eq("user_id", user.id),
+        supabase.from("categories").select("id, name, type").eq("user_id", user.id),
+        supabase.from("cost_centers").select("id, name").eq("user_id", user.id),
+      ]);
+
+      if (entRes.data) setEntities(entRes.data);
+      if (catRes.data) setCategories(catRes.data);
+      if (ccRes.data) setCostCenters(ccRes.data);
+
+      if (txRes.data) {
+        const mapped = txRes.data.map((t) => ({
+          ...t,
+          entity_name: entRes.data?.find((e) => e.id === t.entity_id)?.name || "",
+          category_name: catRes.data?.find((c) => c.id === t.category_id)?.name || "",
+          cost_center_name: ccRes.data?.find((cc) => cc.id === t.cost_center_id)?.name || "",
+        }));
+        setTransactions(mapped);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const refreshTransactions = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data } = await supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false });
+    if (data) {
+      const mapped = data.map((t) => ({
+        ...t,
+        entity_name: entities.find((e) => e.id === t.entity_id)?.name || "",
+        category_name: categories.find((c) => c.id === t.category_id)?.name || "",
+        cost_center_name: costCenters.find((cc) => cc.id === t.cost_center_id)?.name || "",
+      }));
+      setTransactions(mapped);
+    }
+  };
+
+  const handleOFXImport = async (file: File) => {
     setImporting(true);
-    setImportedFileName(file.name);
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const content = e.target?.result as string;
         const parsed = parseOFX(content);
@@ -109,28 +160,58 @@ const Transactions = () => {
           return;
         }
 
-        const newTransactions: Transaction[] = parsed.map((ofx, i) => {
-          const isKnown = knownEntities.some(name => ofx.description.toLowerCase().includes(name));
-          // If entity not known, it would be auto-created in entities table
-          // For now we flag it visually
-          return {
-            id: Date.now() + i,
-            data: ofx.date,
-            descricao: ofx.description,
-            categoria: "", // empty - pending manual fill
-            centroCusto: "", // empty - pending manual fill
-            valor: ofx.type === "saida" ? -ofx.value : ofx.value,
-            status: "pendente" as const,
-            aiCategorized: false,
-          };
-        });
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          toast({ title: "Usuário não autenticado", variant: "destructive" });
+          setImporting(false);
+          return;
+        }
 
-        setTransactions(prev => [...newTransactions, ...prev]);
+        // For each parsed transaction, check/create entity and insert
+        let created = 0;
+        for (const ofx of parsed) {
+          // Check if entity exists by description
+          let entityId: string | null = null;
+          const matchedEntity = entities.find((ent) =>
+            ofx.description.toLowerCase().includes(ent.name.toLowerCase())
+          );
+
+          if (matchedEntity) {
+            entityId = matchedEntity.id;
+          } else {
+            // Auto-create entity
+            const entityType = ofx.type === "entrada" ? "cliente" : "fornecedor";
+            const { data: newEntity } = await supabase.from("entities").insert({
+              user_id: user.id,
+              name: ofx.description,
+              type: entityType,
+            }).select("id, name, type, default_category_id").single();
+            if (newEntity) {
+              entityId = newEntity.id;
+              setEntities((prev) => [...prev, newEntity]);
+            }
+          }
+
+          const value = ofx.type === "saida" ? -ofx.value : ofx.value;
+
+          await supabase.from("transactions").insert({
+            user_id: user.id,
+            date: ofx.date,
+            description: ofx.description,
+            value,
+            type: ofx.type,
+            entity_id: entityId,
+            status: "pendente",
+          });
+          created++;
+        }
+
         toast({
-          title: `${parsed.length} transações importadas`,
-          description: `Arquivo ${file.name} processado com sucesso. Preencha Categoria e Centro de Custo dos itens pendentes.`,
+          title: `${created} transações importadas`,
+          description: `Arquivo ${file.name} processado. Preencha Categoria e Centro de Custo dos itens pendentes.`,
         });
         setImportOpen(false);
+        await refreshTransactions();
       } catch {
         toast({ title: "Erro ao processar arquivo", description: "Verifique se o arquivo é um OFX válido.", variant: "destructive" });
       }
@@ -170,53 +251,139 @@ const Transactions = () => {
 
   const filtered = transactions
     .filter((t) => {
-      const matchSearch = t.descricao.toLowerCase().includes(search.toLowerCase());
-      const matchCategory = categoryFilter === "todas" || t.categoria === categoryFilter;
+      const desc = (t.description || "").toLowerCase();
+      const entName = (t.entity_name || "").toLowerCase();
+      const matchSearch = desc.includes(search.toLowerCase()) || entName.includes(search.toLowerCase());
+      const matchCategory = categoryFilter === "todas" || t.category_name === categoryFilter;
       const matchStatus = statusFilter === "todos" || t.status === statusFilter;
-      const matchCostCenter = costCenterFilter === "todos" || t.centroCusto === costCenterFilter;
-      const tDate = new Date(t.data);
+      const matchCostCenter = costCenterFilter === "todos" || t.cost_center_name === costCenterFilter;
+      const tDate = new Date(t.date);
       const matchDateFrom = !dateFrom || tDate >= dateFrom;
       const matchDateTo = !dateTo || tDate <= dateTo;
       return matchSearch && matchCategory && matchStatus && matchCostCenter && matchDateFrom && matchDateTo;
     })
     .sort((a, b) => {
       let cmp = 0;
-      if (sortField === "data") cmp = a.data.localeCompare(b.data);
-      else if (sortField === "descricao") cmp = a.descricao.localeCompare(b.descricao);
-      else if (sortField === "categoria") cmp = a.categoria.localeCompare(b.categoria);
-      else if (sortField === "centroCusto") cmp = a.centroCusto.localeCompare(b.centroCusto);
-      else if (sortField === "valor") cmp = a.valor - b.valor;
+      if (sortField === "date") cmp = a.date.localeCompare(b.date);
+      else if (sortField === "description") cmp = (a.description || "").localeCompare(b.description || "");
+      else if (sortField === "category") cmp = (a.category_name || "").localeCompare(b.category_name || "");
+      else if (sortField === "costCenter") cmp = (a.cost_center_name || "").localeCompare(b.cost_center_name || "");
+      else if (sortField === "value") cmp = a.value - b.value;
       else if (sortField === "status") cmp = a.status.localeCompare(b.status);
       return sortDir === "asc" ? cmp : -cmp;
     });
 
-  const categories = [...new Set(transactions.map((t) => t.categoria).filter(Boolean))];
-  const costCenters = [...new Set(transactions.map((t) => t.centroCusto).filter(Boolean))];
+  const categoryNames = [...new Set(transactions.map((t) => t.category_name).filter(Boolean))];
+  const costCenterNames = [...new Set(transactions.map((t) => t.cost_center_name).filter(Boolean))];
 
   const handleEdit = (t: Transaction) => {
     setEditTransaction({ ...t });
     setEditOpen(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editTransaction) return;
-    setTransactions(prev => prev.map(t => t.id === editTransaction.id ? editTransaction : t));
-    setEditOpen(false);
-    setEditTransaction(null);
+    const { error } = await supabase.from("transactions").update({
+      date: editTransaction.date,
+      description: editTransaction.description,
+      entity_id: editTransaction.entity_id || null,
+      category_id: editTransaction.category_id || null,
+      cost_center_id: editTransaction.cost_center_id || null,
+      value: editTransaction.value,
+      type: editTransaction.type,
+      status: editTransaction.status,
+    }).eq("id", editTransaction.id);
+    if (error) {
+      toast({ title: "Erro ao salvar", variant: "destructive" });
+    } else {
+      toast({ title: "Lançamento atualizado" });
+      setEditOpen(false);
+      setEditTransaction(null);
+      await refreshTransactions();
+    }
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (id: string) => {
     setDeleteId(id);
     setDeleteOpen(true);
   };
 
-  const confirmDelete = () => {
-    if (deleteId !== null) {
-      setTransactions(prev => prev.filter(t => t.id !== deleteId));
+  const confirmDelete = async () => {
+    if (deleteId) {
+      const { error } = await supabase.from("transactions").delete().eq("id", deleteId);
+      if (error) {
+        toast({ title: "Erro ao excluir", variant: "destructive" });
+      } else {
+        toast({ title: "Lançamento excluído" });
+        await refreshTransactions();
+      }
     }
     setDeleteOpen(false);
     setDeleteId(null);
   };
+
+  const handleNewSave = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const numericValue = parseFloat(newTransaction.value) || 0;
+    const finalValue = newTransaction.type === "saida" ? -Math.abs(numericValue) : Math.abs(numericValue);
+
+    const { error } = await supabase.from("transactions").insert({
+      user_id: user.id,
+      date: newTransaction.date,
+      description: newTransaction.description,
+      entity_id: newTransaction.entity_id || null,
+      category_id: newTransaction.category_id || null,
+      cost_center_id: newTransaction.cost_center_id || null,
+      value: finalValue,
+      type: newTransaction.type,
+      status: newTransaction.status,
+    });
+    if (error) {
+      toast({ title: "Erro ao criar lançamento", variant: "destructive" });
+    } else {
+      toast({ title: "Lançamento criado" });
+      setNewOpen(false);
+      setNewTransaction({ date: new Date().toISOString().split("T")[0], description: "", entity_id: "", category_id: "", cost_center_id: "", value: "", type: "entrada", status: "pendente" });
+      await refreshTransactions();
+    }
+  };
+
+  // When entity changes on new transaction, auto-suggest category
+  const handleEntityChangeNew = (entityId: string) => {
+    setNewTransaction((prev) => {
+      const entity = entities.find((e) => e.id === entityId);
+      return {
+        ...prev,
+        entity_id: entityId,
+        type: entity?.type === "cliente" ? "entrada" : "saida",
+        category_id: entity?.default_category_id || prev.category_id,
+      };
+    });
+  };
+
+  const handleEntityChangeEdit = (entityId: string) => {
+    if (!editTransaction) return;
+    const entity = entities.find((e) => e.id === entityId);
+    setEditTransaction({
+      ...editTransaction,
+      entity_id: entityId,
+      type: entity?.type === "cliente" ? "entrada" : "saida",
+      category_id: entity?.default_category_id || editTransaction.category_id,
+    });
+  };
+
+  const clearFilters = () => {
+    setSearch("");
+    setCategoryFilter("todas");
+    setStatusFilter("todos");
+    setCostCenterFilter("todos");
+    setDateFrom(undefined);
+    setDateTo(undefined);
+  };
+
+  const hasFilters = dateFrom || dateTo || categoryFilter !== "todas" || statusFilter !== "todos" || costCenterFilter !== "todos" || search;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -224,51 +391,48 @@ const Transactions = () => {
         <div>
           <h1 className="font-heading text-2xl font-bold text-foreground">Movimentação</h1>
         </div>
-        <Dialog open={importOpen} onOpenChange={setImportOpen}>
-          <DialogTrigger asChild>
-            <Button variant="hero" size="lg" className="gap-2">
-              <Upload size={18} />
-              Importar Extrato
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Importar Extrato</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 pt-2">
-              <div className="flex items-center gap-3 p-4 rounded-xl border-2 border-gold bg-gold/5">
-                <FileText size={28} className="text-gold" />
-                <div>
-                  <span className="text-sm font-medium">Arquivo OFX</span>
-                  <p className="text-[10px] text-muted-foreground">Formato padrão bancário</p>
-                </div>
-              </div>
-
-              <div
-                className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-gold/50 transition-colors cursor-pointer"
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={handleDrop}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".ofx"
-                  className="hidden"
-                  onChange={handleFileSelect}
-                />
-                <Upload size={32} className="mx-auto text-muted-foreground mb-2" />
-                <p className="text-sm font-medium text-foreground">Arraste o arquivo ou clique para selecionar</p>
-                <p className="text-xs text-muted-foreground mt-1">Aceita arquivos .ofx</p>
-              </div>
-
-              <Button className="w-full" disabled={importing} onClick={() => fileInputRef.current?.click()}>
-                <Upload size={16} className="mr-2" />
-                {importing ? "Processando..." : "Selecionar Arquivo OFX"}
+        <div className="flex gap-2">
+          <Button variant="outline" className="gap-2" onClick={() => setNewOpen(true)}>
+            <Plus size={16} /> Novo Lançamento
+          </Button>
+          <Dialog open={importOpen} onOpenChange={setImportOpen}>
+            <DialogTrigger asChild>
+              <Button variant="hero" size="lg" className="gap-2">
+                <Upload size={18} />
+                Importar OFX
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Importar Extrato OFX</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center gap-3 p-4 rounded-xl border-2 border-gold bg-gold/5">
+                  <FileText size={28} className="text-gold" />
+                  <div>
+                    <span className="text-sm font-medium">Arquivo OFX</span>
+                    <p className="text-[10px] text-muted-foreground">Formato padrão bancário</p>
+                  </div>
+                </div>
+                <div
+                  className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-gold/50 transition-colors cursor-pointer"
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={handleDrop}
+                >
+                  <input ref={fileInputRef} type="file" accept=".ofx" className="hidden" onChange={handleFileSelect} />
+                  <Upload size={32} className="mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm font-medium text-foreground">Arraste o arquivo ou clique para selecionar</p>
+                  <p className="text-xs text-muted-foreground mt-1">Aceita arquivos .ofx</p>
+                </div>
+                <Button className="w-full" disabled={importing} onClick={() => fileInputRef.current?.click()}>
+                  <Upload size={16} className="mr-2" />
+                  {importing ? "Processando..." : "Selecionar Arquivo OFX"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Filters */}
@@ -277,12 +441,7 @@ const Transactions = () => {
           <div className="flex flex-col md:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-              <Input
-                placeholder="Buscar por descrição..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 h-10 bg-background/50"
-              />
+              <Input placeholder="Buscar por descrição..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-10 bg-background/50" />
             </div>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
               <SelectTrigger className="w-full md:w-44 h-10">
@@ -291,8 +450,8 @@ const Transactions = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todas">Todas Categorias</SelectItem>
-                {categories.map((c) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                {categoryNames.map((c) => (
+                  <SelectItem key={c} value={c!}>{c}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -303,8 +462,8 @@ const Transactions = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos Centros</SelectItem>
-                {costCenters.map((c) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                {costCenterNames.map((c) => (
+                  <SelectItem key={c} value={c!}>{c}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -343,10 +502,8 @@ const Transactions = () => {
                 <Calendar mode="single" selected={dateTo} onSelect={setDateTo} locale={ptBR} className="p-3 pointer-events-auto" />
               </PopoverContent>
             </Popover>
-            {(dateFrom || dateTo || categoryFilter !== "todas" || statusFilter !== "todos" || costCenterFilter !== "todos" || search) && (
-              <Button variant="ghost" size="sm" className="h-10" onClick={() => {
-                setSearch(""); setCategoryFilter("todas"); setStatusFilter("todos"); setCostCenterFilter("todos"); setDateFrom(undefined); setDateTo(undefined);
-              }}>
+            {hasFilters && (
+              <Button variant="ghost" size="sm" className="h-10" onClick={clearFilters}>
                 Limpar filtros
               </Button>
             )}
@@ -361,11 +518,11 @@ const Transactions = () => {
             <thead>
               <tr className="border-b border-border bg-muted/30">
                 {[
-                  { field: "data" as SortField, label: "Data" },
-                  { field: "descricao" as SortField, label: "Descrição" },
-                  { field: "categoria" as SortField, label: "Categoria" },
-                  { field: "centroCusto" as SortField, label: "Centro de Custo", hideOnMobile: true },
-                  { field: "valor" as SortField, label: "Valor" },
+                  { field: "date" as SortField, label: "Data" },
+                  { field: "description" as SortField, label: "Descrição" },
+                  { field: "category" as SortField, label: "Categoria" },
+                  { field: "costCenter" as SortField, label: "Centro de Custo", hideOnMobile: true },
+                  { field: "value" as SortField, label: "Valor" },
                   { field: "status" as SortField, label: "Status" },
                 ].map((col) => (
                   <th
@@ -389,30 +546,33 @@ const Transactions = () => {
               {filtered.map((t) => (
                 <tr key={t.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
                   <td className="px-5 py-3.5 text-sm text-foreground whitespace-nowrap">
-                    {new Date(t.data).toLocaleDateString("pt-BR")}
+                    {new Date(t.date).toLocaleDateString("pt-BR")}
                   </td>
                   <td className="px-5 py-3.5 text-sm text-foreground">
-                    {t.descricao}
+                    <div>
+                      <span>{t.description}</span>
+                      {t.entity_name && <span className="block text-xs text-muted-foreground">{t.entity_name}</span>}
+                    </div>
                   </td>
                   <td className="px-5 py-3.5 text-sm text-muted-foreground">
-                    {t.categoria ? t.categoria : (
+                    {t.category_name ? t.category_name : (
                       <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-warning/10 text-warning">
                         <AlertTriangle size={12} /> Pendente
                       </span>
                     )}
                   </td>
                   <td className="px-5 py-3.5 text-sm text-muted-foreground hidden lg:table-cell">
-                    {t.centroCusto ? t.centroCusto : (
+                    {t.cost_center_name ? t.cost_center_name : (
                       <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-warning/10 text-warning">
                         <AlertTriangle size={12} /> Pendente
                       </span>
                     )}
                   </td>
-                  <td className={`px-5 py-3.5 text-sm font-mono font-medium whitespace-nowrap text-center ${t.valor >= 0 ? "text-success" : "text-destructive"}`}>
-                    {t.valor < 0 ? "- " : ""}{formatCurrency(Math.abs(t.valor))}
+                  <td className={`px-5 py-3.5 text-sm font-mono font-medium whitespace-nowrap text-center ${t.value >= 0 ? "text-success" : "text-destructive"}`}>
+                    {t.value < 0 ? "- " : ""}{formatCurrency(Math.abs(t.value))}
                   </td>
                   <td className="px-5 py-3.5 text-center">
-                    <span className={`text-[11px] font-semibold capitalize px-2.5 py-1 rounded-full ${statusStyles[t.status]}`}>
+                    <span className={`text-[11px] font-semibold capitalize px-2.5 py-1 rounded-full ${statusStyles[t.status] || "bg-muted text-muted-foreground"}`}>
                       {t.status}
                     </span>
                   </td>
@@ -435,69 +595,164 @@ const Transactions = () => {
                   </td>
                 </tr>
               ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={7} className="px-5 py-12 text-center text-muted-foreground text-sm">Nenhum lançamento encontrado</td></tr>
+              )}
             </tbody>
           </table>
         </div>
-        <div className="px-5 py-3 border-t border-border bg-muted/20 flex items-center justify-between text-xs text-muted-foreground">
-          <span>{filtered.length} lançamentos encontrados</span>
+        <div className="px-5 py-3 border-t border-border bg-muted/20 text-xs text-muted-foreground">
+          {filtered.length} lançamentos encontrados
         </div>
       </div>
 
-      {/* Edit Dialog */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+      {/* New Transaction Dialog */}
+      <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Editar Lançamento</DialogTitle>
-          </DialogHeader>
-          {editTransaction && (
-            <div className="space-y-4 pt-2">
+          <DialogHeader><DialogTitle>Novo Lançamento</DialogTitle></DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Data</Label>
-                <Input
-                  type="date"
-                  value={editTransaction.data}
-                  onChange={(e) => setEditTransaction({ ...editTransaction, data: e.target.value })}
-                />
+                <Input type="date" value={newTransaction.date} onChange={(e) => setNewTransaction({ ...newTransaction, date: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label>Descrição (Cliente/Fornecedor)</Label>
-                <Select
-                  value={editTransaction.descricao || undefined}
-                  onValueChange={(v) => setEditTransaction({ ...editTransaction, descricao: v })}
-                >
+                <Label>Tipo</Label>
+                <Select value={newTransaction.type} onValueChange={(v) => setNewTransaction({ ...newTransaction, type: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="entrada">Entrada</SelectItem>
+                    <SelectItem value="saida">Saída</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Cliente/Fornecedor</Label>
+              <Select value={newTransaction.entity_id || "none"} onValueChange={(v) => handleEntityChangeNew(v === "none" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {entities.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>{e.name} ({e.type})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Descrição</Label>
+              <Input value={newTransaction.description} onChange={(e) => setNewTransaction({ ...newTransaction, description: e.target.value })} placeholder="Descrição do lançamento" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Categoria</Label>
+                <Select value={newTransaction.category_id || "none"} onValueChange={(v) => setNewTransaction({ ...newTransaction, category_id: v === "none" ? "" : v })}>
                   <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                   <SelectContent>
-                    {initialClientesFornecedores.map(cf => (
-                      <SelectItem key={cf.id} value={cf.nome}>{cf.nome}</SelectItem>
+                    <SelectItem value="none">Nenhuma</SelectItem>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2">
+                <Label>Centro de Custo</Label>
+                <Select value={newTransaction.cost_center_id || "none"} onValueChange={(v) => setNewTransaction({ ...newTransaction, cost_center_id: v === "none" ? "" : v })}>
+                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {costCenters.map((cc) => (
+                      <SelectItem key={cc.id} value={cc.id}>{cc.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Valor (sempre positivo)</Label>
+                <Input type="number" step="0.01" min="0" value={newTransaction.value} onChange={(e) => setNewTransaction({ ...newTransaction, value: e.target.value })} placeholder="0,00" />
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={newTransaction.status} onValueChange={(v) => setNewTransaction({ ...newTransaction, status: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pendente">Pendente</SelectItem>
+                    <SelectItem value="conciliado">Conciliado</SelectItem>
+                    <SelectItem value="revisão">Revisão</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setNewOpen(false)}>Cancelar</Button>
+              <Button onClick={handleNewSave}>Salvar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Editar Lançamento</DialogTitle></DialogHeader>
+          {editTransaction && (
+            <div className="space-y-4 pt-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Data</Label>
+                  <Input type="date" value={editTransaction.date} onChange={(e) => setEditTransaction({ ...editTransaction, date: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Tipo</Label>
+                  <Select value={editTransaction.type} onValueChange={(v) => setEditTransaction({ ...editTransaction, type: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="entrada">Entrada</SelectItem>
+                      <SelectItem value="saida">Saída</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Cliente/Fornecedor</Label>
+                <Select value={editTransaction.entity_id || "none"} onValueChange={(v) => handleEntityChangeEdit(v === "none" ? "" : v)}>
+                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {entities.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>{e.name} ({e.type})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Input value={editTransaction.description || ""} onChange={(e) => setEditTransaction({ ...editTransaction, description: e.target.value })} />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Categoria</Label>
-                  <Select
-                    value={editTransaction.categoria || undefined}
-                    onValueChange={(v) => setEditTransaction({ ...editTransaction, categoria: v })}
-                  >
+                  <Select value={editTransaction.category_id || "none"} onValueChange={(v) => setEditTransaction({ ...editTransaction, category_id: v === "none" ? "" : v })}>
                     <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                     <SelectContent>
-                      {initialCategorias.map(c => (
-                        <SelectItem key={c.id} value={c.nome}>{c.nome}</SelectItem>
+                      <SelectItem value="none">Nenhuma</SelectItem>
+                      {categories.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Centro de Custo</Label>
-                  <Select
-                    value={editTransaction.centroCusto || undefined}
-                    onValueChange={(v) => setEditTransaction({ ...editTransaction, centroCusto: v })}
-                  >
+                  <Select value={editTransaction.cost_center_id || "none"} onValueChange={(v) => setEditTransaction({ ...editTransaction, cost_center_id: v === "none" ? "" : v })}>
                     <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                     <SelectContent>
-                      {initialCentrosCusto.map(cc => (
-                        <SelectItem key={cc.id} value={cc.nome}>{cc.nome}</SelectItem>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {costCenters.map((cc) => (
+                        <SelectItem key={cc.id} value={cc.id}>{cc.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -506,22 +761,15 @@ const Transactions = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Valor</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={editTransaction.valor}
-                    onChange={(e) => setEditTransaction({ ...editTransaction, valor: parseFloat(e.target.value) || 0 })}
-                  />
+                  <Input type="number" step="0.01" value={Math.abs(editTransaction.value)} onChange={(e) => {
+                    const absVal = Math.abs(parseFloat(e.target.value) || 0);
+                    setEditTransaction({ ...editTransaction, value: editTransaction.type === "saida" ? -absVal : absVal });
+                  }} />
                 </div>
                 <div className="space-y-2">
                   <Label>Status</Label>
-                  <Select
-                    value={editTransaction.status}
-                    onValueChange={(v) => setEditTransaction({ ...editTransaction, status: v as Transaction["status"] })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                  <Select value={editTransaction.status} onValueChange={(v) => setEditTransaction({ ...editTransaction, status: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="conciliado">Conciliado</SelectItem>
                       <SelectItem value="pendente">Pendente</SelectItem>
@@ -542,9 +790,7 @@ const Transactions = () => {
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Excluir Lançamento</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Excluir Lançamento</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">Tem certeza que deseja excluir este lançamento? Esta ação não pode ser desfeita.</p>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancelar</Button>
