@@ -477,7 +477,7 @@ const Transactions = () => {
                 <div className="space-y-2">
                   <Label>Categoria</Label>
                   <Select
-                    value={editTransaction.categoria}
+                    value={editTransaction.categoria || undefined}
                     onValueChange={(v) => setEditTransaction({ ...editTransaction, categoria: v })}
                   >
                     <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
