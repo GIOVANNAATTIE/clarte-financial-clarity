@@ -70,6 +70,9 @@ const ClientSettings = () => {
   const [newUserName, setNewUserName] = useState("");
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserRole, setNewUserRole] = useState<UserRole>("operador");
+  const [aiProvider, setAiProvider] = useState("openai");
+  const [aiApiKey, setAiApiKey] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
 
   const handleAddUser = () => {
     if (!newUserName || !newUserEmail) return;
