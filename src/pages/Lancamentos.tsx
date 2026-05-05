@@ -29,6 +29,30 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+// Prefixes to strip from description
+const DESCRIPTION_PREFIXES = [
+  "PIX ENVIADO PARA ", "PIX RECEBIDO DE ",
+  "PAGAMENTO DE BOLETO ", "PAGAMENTO DE CONTA / TRIBUTO ",
+  "PAGAMENTO DE CONTA/TRIBUTO ",
+  "TRANSFERENCIA ENVIADA PARA ", "TRANSFERENCIA RECEBIDA DE ",
+  "TED ENVIADA PARA ", "TED RECEBIDA DE ",
+  "DOC ENVIADO PARA ", "DOC RECEBIDO DE ",
+];
+
+function cleanDescription(raw: string | null): { main: string; detail: string } {
+  if (!raw) return { main: "", detail: "" };
+  let cleaned = raw;
+  // Remove leading dashes
+  cleaned = cleaned.replace(/^-+\s*/, "");
+  const upper = cleaned.toUpperCase();
+  for (const prefix of DESCRIPTION_PREFIXES) {
+    if (upper.startsWith(prefix)) {
+      return { main: cleaned.slice(prefix.length).trim(), detail: cleaned };
+    }
+  }
+  return { main: cleaned, detail: "" };
+}
+
 type Lancamento = {
   id: string;
   tipo: string;
