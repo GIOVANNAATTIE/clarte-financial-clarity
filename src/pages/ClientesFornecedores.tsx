@@ -84,24 +84,6 @@ const ClientesFornecedores = () => {
   };
 
   // Logo upload (local preview)
-  const handleLogoUpload = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    setItem: (item: ClienteFornecedor) => void,
-    currentItem: ClienteFornecedor
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast({ title: "Apenas imagens são aceitas", variant: "destructive" });
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setItem({ ...currentItem, logoUrl: ev.target?.result as string });
-    };
-    reader.readAsDataURL(file);
-  };
-
   // Clientes handlers
   const handleNewCliente = () => { setEditCliente(emptyEntity("cliente")); setClienteDialogOpen(true); };
   const handleEditCliente = (item: ClienteFornecedor) => { setEditCliente({ ...item }); setClienteDialogOpen(true); };
