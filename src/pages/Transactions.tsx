@@ -87,6 +87,72 @@ const Transactions = () => {
   const [editTransaction, setEditTransaction] = useState<Transaction | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importedFileName, setImportedFileName] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  const knownEntities = initialClientesFornecedores.map(e => e.nome.toLowerCase());
+
+  const handleOFXImport = (file: File) => {
+    setImporting(true);
+    setImportedFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const parsed = parseOFX(content);
+
+        if (parsed.length === 0) {
+          toast({ title: "Nenhuma transação encontrada", description: "O arquivo OFX não contém transações válidas.", variant: "destructive" });
+          setImporting(false);
+          return;
+        }
+
+        const newTransactions: Transaction[] = parsed.map((ofx, i) => {
+          const isKnown = knownEntities.some(name => ofx.description.toLowerCase().includes(name));
+          // If entity not known, it would be auto-created in entities table
+          // For now we flag it visually
+          return {
+            id: Date.now() + i,
+            data: ofx.date,
+            descricao: ofx.description,
+            categoria: "", // empty - pending manual fill
+            centroCusto: "", // empty - pending manual fill
+            valor: ofx.type === "saida" ? -ofx.value : ofx.value,
+            status: "pendente" as const,
+            aiCategorized: false,
+          };
+        });
+
+        setTransactions(prev => [...newTransactions, ...prev]);
+        toast({
+          title: `${parsed.length} transações importadas`,
+          description: `Arquivo ${file.name} processado com sucesso. Preencha Categoria e Centro de Custo dos itens pendentes.`,
+        });
+        setImportOpen(false);
+      } catch {
+        toast({ title: "Erro ao processar arquivo", description: "Verifique se o arquivo é um OFX válido.", variant: "destructive" });
+      }
+      setImporting(false);
+    };
+    reader.readAsText(content || file);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleOFXImport(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file && (file.name.endsWith('.ofx') || file.name.endsWith('.OFX'))) {
+      handleOFXImport(file);
+    } else {
+      toast({ title: "Formato inválido", description: "Apenas arquivos .ofx são aceitos.", variant: "destructive" });
+    }
+  };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
