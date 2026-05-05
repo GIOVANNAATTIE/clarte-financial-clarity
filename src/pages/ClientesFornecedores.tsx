@@ -53,7 +53,7 @@ const ClientesFornecedores = () => {
   const [fornecedorDeleteId, setFornecedorDeleteId] = useState<number | null>(null);
 
   const [cepLoading, setCepLoading] = useState(false);
-  const logoInputRef = useRef<HTMLInputElement>(null);
+  
 
   // ViaCEP lookup
   const fetchCep = async (cep: string, setItem: (item: ClienteFornecedor) => void, currentItem: ClienteFornecedor) => {
