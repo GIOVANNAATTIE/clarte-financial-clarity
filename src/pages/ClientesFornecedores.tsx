@@ -9,7 +9,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Search, Upload, Loader2, MapPin, Building2, Key } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Loader2, MapPin, Building2, Key } from "lucide-react";
 import { initialClientesFornecedores, type ClienteFornecedor } from "@/data/cadastros";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
