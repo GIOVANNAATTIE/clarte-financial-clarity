@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { parseOFX, type OFXTransaction } from "@/lib/ofxParser";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, CheckSquare } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -65,6 +66,32 @@ const statusStyles: Record<string, string> = {
   "revisão": "bg-destructive/10 text-destructive",
 };
 
+// Prefixes to strip from description to get a clean entity name
+const DESCRIPTION_PREFIXES = [
+  "PIX ENVIADO PARA ",
+  "PIX RECEBIDO DE ",
+  "PAGAMENTO DE BOLETO ",
+  "PAGAMENTO DE CONTA / TRIBUTO ",
+  "PAGAMENTO DE CONTA/TRIBUTO ",
+  "TRANSFERENCIA ENVIADA PARA ",
+  "TRANSFERENCIA RECEBIDA DE ",
+  "TED ENVIADA PARA ",
+  "TED RECEBIDA DE ",
+  "DOC ENVIADO PARA ",
+  "DOC RECEBIDO DE ",
+];
+
+function cleanDescription(raw: string | null): { main: string; detail: string } {
+  if (!raw) return { main: "", detail: "" };
+  const upper = raw.toUpperCase();
+  for (const prefix of DESCRIPTION_PREFIXES) {
+    if (upper.startsWith(prefix)) {
+      return { main: raw.slice(prefix.length).trim(), detail: raw };
+    }
+  }
+  return { main: raw, detail: "" };
+}
+
 type SortField = "date" | "description" | "category" | "costCenter" | "value" | "status";
 type SortDir = "asc" | "desc";
 
@@ -88,6 +115,7 @@ const Transactions = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [newTransaction, setNewTransaction] = useState({
     date: new Date().toISOString().split("T")[0],
     description: "",
@@ -149,7 +177,6 @@ const Transactions = () => {
    const handleOFXImport = async (file: File) => {
      setImporting(true);
 
-     // Garante sessão restaurada e token válido antes de ler/enviar qualquer dado do OFX.
      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
      const accessToken = sessionData.session?.access_token;
      const userId = sessionData.session?.user?.id;
@@ -179,10 +206,8 @@ const Transactions = () => {
            return;
          }
 
-        // For each parsed transaction, check/create entity and insert
         let created = 0;
         for (const ofx of parsed) {
-          // Check if entity exists by description
           let entityId: string | null = null;
           const matchedEntity = entities.find((ent) =>
             ofx.description.toLowerCase().includes(ent.name.toLowerCase())
@@ -191,7 +216,6 @@ const Transactions = () => {
           if (matchedEntity) {
             entityId = matchedEntity.id;
           } else {
-            // Auto-create entity
             const entityType = ofx.type === "entrada" ? "cliente" : "fornecedor";
              const { data: newEntity, error: entityError } = await supabase.from("entities").insert({
                user_id: userId,
@@ -290,6 +314,44 @@ const Transactions = () => {
   const categoryNames = [...new Set(transactions.map((t) => t.category_name).filter(Boolean))];
   const costCenterNames = [...new Set(transactions.map((t) => t.cost_center_name).filter(Boolean))];
 
+  // Totals
+  const totalEntradas = filtered.filter(t => t.value > 0).reduce((s, t) => s + t.value, 0);
+  const totalSaidas = filtered.filter(t => t.value < 0).reduce((s, t) => s + t.value, 0);
+  const totalGeral = totalEntradas + totalSaidas;
+
+  // Selection helpers
+  const allFilteredSelected = filtered.length > 0 && filtered.every(t => selectedIds.has(t.id));
+  const someSelected = selectedIds.size > 0;
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map(t => t.id)));
+    }
+  };
+
+  const handleBulkConciliar = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    const { error } = await supabase.from("transactions").update({ status: "conciliado" }).in("id", ids);
+    if (error) {
+      toast({ title: "Erro ao conciliar", variant: "destructive" });
+    } else {
+      toast({ title: `${ids.length} lançamento(s) conciliado(s)` });
+      setSelectedIds(new Set());
+      await refreshTransactions();
+    }
+  };
+
   const handleEdit = (t: Transaction) => {
     setEditTransaction({ ...t });
     setEditOpen(true);
@@ -364,7 +426,6 @@ const Transactions = () => {
     }
   };
 
-  // When entity changes on new transaction, auto-suggest category
   const handleEntityChangeNew = (entityId: string) => {
     setNewTransaction((prev) => {
       const entity = entities.find((e) => e.id === entityId);
@@ -449,6 +510,17 @@ const Transactions = () => {
         </div>
       </div>
 
+      {/* Bulk action bar */}
+      {someSelected && (
+        <div className="flex items-center gap-4 bg-primary/10 border border-primary/20 rounded-xl px-5 py-3">
+          <span className="text-sm font-medium text-foreground">{selectedIds.size} selecionado(s)</span>
+          <Button size="sm" className="gap-2" onClick={handleBulkConciliar}>
+            <CheckSquare size={14} /> Marcar como Conciliado
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Limpar seleção</Button>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="bg-card rounded-xl border border-border p-4 shadow-[var(--shadow-card)]">
         <div className="flex flex-col gap-3">
@@ -531,6 +603,12 @@ const Transactions = () => {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border bg-muted/30">
+                <th className="px-3 py-3 w-10">
+                  <Checkbox
+                    checked={allFilteredSelected}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </th>
                 {[
                   { field: "date" as SortField, label: "Data" },
                   { field: "description" as SortField, label: "Descrição" },
@@ -557,62 +635,93 @@ const Transactions = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((t) => (
-                <tr key={t.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                  <td className="px-5 py-3.5 text-sm text-foreground whitespace-nowrap">
-                    {new Date(t.date).toLocaleDateString("pt-BR")}
-                  </td>
-                  <td className="px-5 py-3.5 text-sm text-foreground">
-                    <div>
-                      <span>{t.description}</span>
-                      {t.entity_name && <span className="block text-xs text-muted-foreground">{t.entity_name}</span>}
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5 text-sm text-muted-foreground">
-                    {t.category_name ? t.category_name : (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-warning/10 text-warning">
-                        <AlertTriangle size={12} /> Pendente
+              {filtered.map((t) => {
+                const { main, detail } = cleanDescription(t.description);
+                return (
+                  <tr key={t.id} className={cn("border-b border-border/50 hover:bg-muted/20 transition-colors", selectedIds.has(t.id) && "bg-primary/5")}>
+                    <td className="px-3 py-3.5">
+                      <Checkbox
+                        checked={selectedIds.has(t.id)}
+                        onCheckedChange={() => toggleSelect(t.id)}
+                      />
+                    </td>
+                    <td className="px-5 py-3.5 text-sm text-foreground whitespace-nowrap">
+                      {new Date(t.date).toLocaleDateString("pt-BR")}
+                    </td>
+                    <td className="px-5 py-3.5 text-sm text-foreground">
+                      <div>
+                        <span className="font-medium">{main}</span>
+                        {detail && <span className="block text-xs text-muted-foreground mt-0.5">{detail}</span>}
+                        {!detail && t.entity_name && <span className="block text-xs text-muted-foreground">{t.entity_name}</span>}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-sm text-muted-foreground">
+                      {t.category_name ? t.category_name : (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-warning/10 text-warning">
+                          <AlertTriangle size={12} /> Pendente
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5 text-sm text-muted-foreground hidden lg:table-cell">
+                      {t.cost_center_name ? t.cost_center_name : (
+                        <span className="text-xs text-muted-foreground/60">—</span>
+                      )}
+                    </td>
+                    <td className={`px-5 py-3.5 text-sm font-mono font-medium whitespace-nowrap text-center ${t.value >= 0 ? "text-success" : "text-destructive"}`}>
+                      {t.value < 0 ? "- " : ""}{formatCurrency(Math.abs(t.value))}
+                    </td>
+                    <td className="px-5 py-3.5 text-center">
+                      <span className={`text-[11px] font-semibold capitalize px-2.5 py-1 rounded-full ${statusStyles[t.status] || "bg-muted text-muted-foreground"}`}>
+                        {t.status}
                       </span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3.5 text-sm text-muted-foreground hidden lg:table-cell">
-                    {t.cost_center_name ? t.cost_center_name : (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-warning/10 text-warning">
-                        <AlertTriangle size={12} /> Pendente
-                      </span>
-                    )}
-                  </td>
-                  <td className={`px-5 py-3.5 text-sm font-mono font-medium whitespace-nowrap text-center ${t.value >= 0 ? "text-success" : "text-destructive"}`}>
-                    {t.value < 0 ? "- " : ""}{formatCurrency(Math.abs(t.value))}
-                  </td>
-                  <td className="px-5 py-3.5 text-center">
-                    <span className={`text-[11px] font-semibold capitalize px-2.5 py-1 rounded-full ${statusStyles[t.status] || "bg-muted text-muted-foreground"}`}>
-                      {t.status}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-center">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal size={16} />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEdit(t)} className="gap-2">
-                          <Pencil size={14} /> Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDelete(t.id)} className="gap-2 text-destructive focus:text-destructive">
-                          <Trash2 size={14} /> Excluir
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-5 py-3.5 text-center">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal size={16} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEdit(t)} className="gap-2">
+                            <Pencil size={14} /> Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDelete(t.id)} className="gap-2 text-destructive focus:text-destructive">
+                            <Trash2 size={14} /> Excluir
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                );
+              })}
               {filtered.length === 0 && (
-                <tr><td colSpan={7} className="px-5 py-12 text-center text-muted-foreground text-sm">Nenhum lançamento encontrado</td></tr>
+                <tr><td colSpan={8} className="px-5 py-12 text-center text-muted-foreground text-sm">Nenhum lançamento encontrado</td></tr>
               )}
             </tbody>
+            {filtered.length > 0 && (
+              <tfoot>
+                <tr className="border-t-2 border-border bg-muted/40 font-semibold">
+                  <td colSpan={5} className="px-5 py-3 text-sm text-foreground hidden lg:table-cell">
+                    <div className="flex gap-6">
+                      <span>Entradas: <span className="text-success font-mono">{formatCurrency(totalEntradas)}</span></span>
+                      <span>Saídas: <span className="text-destructive font-mono">{formatCurrency(Math.abs(totalSaidas))}</span></span>
+                    </div>
+                  </td>
+                  <td colSpan={5} className="px-5 py-3 text-sm text-foreground table-cell lg:hidden">
+                    <div className="flex flex-col gap-1">
+                      <span>Entradas: <span className="text-success font-mono">{formatCurrency(totalEntradas)}</span></span>
+                      <span>Saídas: <span className="text-destructive font-mono">{formatCurrency(Math.abs(totalSaidas))}</span></span>
+                    </div>
+                  </td>
+                  <td className={`px-5 py-3 text-sm font-mono text-center ${totalGeral >= 0 ? "text-success" : "text-destructive"}`}>
+                    {totalGeral < 0 ? "- " : ""}{formatCurrency(Math.abs(totalGeral))}
+                  </td>
+                  <td className="hidden lg:table-cell"></td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
         <div className="px-5 py-3 border-t border-border bg-muted/20 text-xs text-muted-foreground">
@@ -671,7 +780,7 @@ const Transactions = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Centro de Custo</Label>
+                <Label>Centro de Custo <span className="text-muted-foreground text-xs">(opcional)</span></Label>
                 <Select value={newTransaction.cost_center_id || "none"} onValueChange={(v) => setNewTransaction({ ...newTransaction, cost_center_id: v === "none" ? "" : v })}>
                   <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                   <SelectContent>
@@ -760,7 +869,7 @@ const Transactions = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Centro de Custo</Label>
+                  <Label>Centro de Custo <span className="text-muted-foreground text-xs">(opcional)</span></Label>
                   <Select value={editTransaction.cost_center_id || "none"} onValueChange={(v) => setEditTransaction({ ...editTransaction, cost_center_id: v === "none" ? "" : v })}>
                     <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                     <SelectContent>
