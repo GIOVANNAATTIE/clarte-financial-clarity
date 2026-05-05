@@ -5,6 +5,7 @@ export type Client = {
   name: string;
   cnpj: string;
   segment: string;
+  logoUrl: string;
 };
 
 const mockClients: Client[] = [
