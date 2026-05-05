@@ -35,6 +35,7 @@ export const useClient = () => {
       selectedClient: null,
       selectClient: () => {},
       clearClient: () => {},
+      updateClient: () => {},
     } as ClientContextType;
   }
   return ctx;
