@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { parseOFX, type OFXTransaction } from "@/lib/ofxParser";
+import { AlertTriangle } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -84,6 +87,72 @@ const Transactions = () => {
   const [editTransaction, setEditTransaction] = useState<Transaction | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importedFileName, setImportedFileName] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  const knownEntities = initialClientesFornecedores.map(e => e.nome.toLowerCase());
+
+  const handleOFXImport = (file: File) => {
+    setImporting(true);
+    setImportedFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const parsed = parseOFX(content);
+
+        if (parsed.length === 0) {
+          toast({ title: "Nenhuma transação encontrada", description: "O arquivo OFX não contém transações válidas.", variant: "destructive" });
+          setImporting(false);
+          return;
+        }
+
+        const newTransactions: Transaction[] = parsed.map((ofx, i) => {
+          const isKnown = knownEntities.some(name => ofx.description.toLowerCase().includes(name));
+          // If entity not known, it would be auto-created in entities table
+          // For now we flag it visually
+          return {
+            id: Date.now() + i,
+            data: ofx.date,
+            descricao: ofx.description,
+            categoria: "", // empty - pending manual fill
+            centroCusto: "", // empty - pending manual fill
+            valor: ofx.type === "saida" ? -ofx.value : ofx.value,
+            status: "pendente" as const,
+            aiCategorized: false,
+          };
+        });
+
+        setTransactions(prev => [...newTransactions, ...prev]);
+        toast({
+          title: `${parsed.length} transações importadas`,
+          description: `Arquivo ${file.name} processado com sucesso. Preencha Categoria e Centro de Custo dos itens pendentes.`,
+        });
+        setImportOpen(false);
+      } catch {
+        toast({ title: "Erro ao processar arquivo", description: "Verifique se o arquivo é um OFX válido.", variant: "destructive" });
+      }
+      setImporting(false);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleOFXImport(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file && (file.name.endsWith('.ofx') || file.name.endsWith('.OFX'))) {
+      handleOFXImport(file);
+    } else {
+      toast({ title: "Formato inválido", description: "Apenas arquivos .ofx são aceitos.", variant: "destructive" });
+    }
+  };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -175,15 +244,27 @@ const Transactions = () => {
                 </div>
               </div>
 
-              <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-gold/50 transition-colors cursor-pointer">
+              <div
+                className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-gold/50 transition-colors cursor-pointer"
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleDrop}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".ofx"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
                 <Upload size={32} className="mx-auto text-muted-foreground mb-2" />
                 <p className="text-sm font-medium text-foreground">Arraste o arquivo ou clique para selecionar</p>
                 <p className="text-xs text-muted-foreground mt-1">Aceita arquivos .ofx</p>
               </div>
 
-              <Button className="w-full">
+              <Button className="w-full" disabled={importing} onClick={() => fileInputRef.current?.click()}>
                 <Upload size={16} className="mr-2" />
-                Importar Arquivo
+                {importing ? "Processando..." : "Selecionar Arquivo OFX"}
               </Button>
             </div>
           </DialogContent>
@@ -313,8 +394,20 @@ const Transactions = () => {
                   <td className="px-5 py-3.5 text-sm text-foreground">
                     {t.descricao}
                   </td>
-                  <td className="px-5 py-3.5 text-sm text-muted-foreground">{t.categoria}</td>
-                  <td className="px-5 py-3.5 text-sm text-muted-foreground hidden lg:table-cell">{t.centroCusto}</td>
+                  <td className="px-5 py-3.5 text-sm text-muted-foreground">
+                    {t.categoria ? t.categoria : (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-warning/10 text-warning">
+                        <AlertTriangle size={12} /> Pendente
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3.5 text-sm text-muted-foreground hidden lg:table-cell">
+                    {t.centroCusto ? t.centroCusto : (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-warning/10 text-warning">
+                        <AlertTriangle size={12} /> Pendente
+                      </span>
+                    )}
+                  </td>
                   <td className={`px-5 py-3.5 text-sm font-mono font-medium whitespace-nowrap text-center ${t.valor >= 0 ? "text-success" : "text-destructive"}`}>
                     {t.valor < 0 ? "- " : ""}{formatCurrency(Math.abs(t.valor))}
                   </td>
