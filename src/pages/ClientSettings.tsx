@@ -11,7 +11,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useClient } from "@/contexts/ClientContext";
-import { Users, Shield, Brain, CreditCard, Plus, Trash2, Settings2, Eye, Edit, Lock } from "lucide-react";
+import { Users, Shield, Brain, CreditCard, Plus, Trash2, Settings2, Eye, Edit, Lock, Upload, Building } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Label } from "@/components/ui/label";
 
 type UserRole = "admin" | "operador" | "visualizador";
 
