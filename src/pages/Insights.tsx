@@ -375,38 +375,131 @@ const Insights = () => {
         </div>
       </div>
 
-      {/* Analysis Content */}
-      <div className="bg-card rounded-xl border border-border shadow-[var(--shadow-card)] overflow-hidden">
-        {!analysisContent && !isLoading && (
+      {/* Analysis Content - Split into cards */}
+      {!analysisContent && !isLoading && (
+        <div className="bg-card rounded-xl border border-border shadow-[var(--shadow-card)] overflow-hidden">
           <div className="text-center py-16">
             <Brain className="mx-auto text-muted-foreground/30 mb-4" size={48} />
             <p className="text-muted-foreground font-medium">Clique em "Atualizar Análise" para gerar os insights</p>
             <p className="text-xs text-muted-foreground/70 mt-1">A IA analisará seus lançamentos reais e gerará um relatório completo</p>
           </div>
-        )}
-        {isLoading && !analysisContent && (
+        </div>
+      )}
+      {isLoading && !analysisContent && (
+        <div className="bg-card rounded-xl border border-border shadow-[var(--shadow-card)] overflow-hidden">
           <div className="text-center py-16">
             <Loader2 className="mx-auto text-gold animate-spin mb-4" size={48} />
             <p className="text-muted-foreground font-medium">Analisando dados financeiros reais...</p>
             <p className="text-xs text-muted-foreground/70 mt-1">A IA está processando seus lançamentos</p>
           </div>
-        )}
-        {analysisContent && (
-          <div className="p-6 md:p-8">
-            <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:font-heading prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-li:text-muted-foreground">
-              <ReactMarkdown>{analysisContent}</ReactMarkdown>
-            </div>
-            {isLoading && (
-              <div className="flex items-center gap-2 mt-4 text-gold">
-                <Loader2 size={14} className="animate-spin" />
-                <span className="text-xs">Gerando análise...</span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+        </div>
+      )}
+      {analysisContent && (
+        <SectionCards content={analysisContent} isLoading={isLoading} />
+      )}
     </div>
   );
 };
+
+/* ---- Helper: split markdown by ## headings into visual cards ---- */
+
+const sectionMeta: Record<string, { icon: React.ReactNode; colorClass: string }> = {
+  "resumo": { icon: <BarChart3 size={20} />, colorClass: "text-blue-400 bg-blue-400/10 border-blue-400/20" },
+  "receita": { icon: <TrendingUp size={20} />, colorClass: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20" },
+  "despesa": { icon: <TrendingDown size={20} />, colorClass: "text-red-400 bg-red-400/10 border-red-400/20" },
+  "fornecedor": { icon: <Building2 size={20} />, colorClass: "text-amber-400 bg-amber-400/10 border-amber-400/20" },
+  "recomenda": { icon: <Lightbulb size={20} />, colorClass: "text-purple-400 bg-purple-400/10 border-purple-400/20" },
+};
+
+function matchSectionKey(title: string): string {
+  const lower = title.toLowerCase();
+  if (lower.includes("resumo") || lower.includes("executivo")) return "resumo";
+  if (lower.includes("receita")) return "receita";
+  if (lower.includes("despesa")) return "despesa";
+  if (lower.includes("fornecedor")) return "fornecedor";
+  if (lower.includes("recomenda") || lower.includes("projeç")) return "recomenda";
+  return "resumo";
+}
+
+function SectionCards({ content, isLoading }: { content: string; isLoading: boolean }) {
+  const sections = useMemo(() => {
+    const parts: { title: string; body: string }[] = [];
+    const lines = content.split("\n");
+    let currentTitle = "";
+    let currentBody: string[] = [];
+
+    for (const line of lines) {
+      const h2Match = line.match(/^##\s+(.+)/);
+      if (h2Match) {
+        if (currentTitle || currentBody.length > 0) {
+          parts.push({ title: currentTitle, body: currentBody.join("\n").trim() });
+        }
+        currentTitle = h2Match[1].trim();
+        currentBody = [];
+      } else {
+        currentBody.push(line);
+      }
+    }
+    if (currentTitle || currentBody.length > 0) {
+      parts.push({ title: currentTitle, body: currentBody.join("\n").trim() });
+    }
+
+    return parts.filter(p => p.title || p.body);
+  }, [content]);
+
+  // If no sections detected yet (still streaming initial text), show single card
+  if (sections.length <= 1 && !sections[0]?.title) {
+    return (
+      <div className="bg-card rounded-xl border border-border shadow-[var(--shadow-card)] p-6 md:p-8">
+        <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:font-heading prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-li:text-muted-foreground">
+          <ReactMarkdown>{content}</ReactMarkdown>
+        </div>
+        {isLoading && (
+          <div className="flex items-center gap-2 mt-4 text-gold">
+            <Loader2 size={14} className="animate-spin" />
+            <span className="text-xs">Gerando análise...</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4">
+      {sections.map((section, i) => {
+        const key = matchSectionKey(section.title);
+        const meta = sectionMeta[key] || sectionMeta["resumo"];
+        const [colorIcon, colorBg, colorBorder] = meta.colorClass.split(" ");
+
+        return (
+          <div
+            key={i}
+            className={`bg-card rounded-xl border shadow-[var(--shadow-card)] overflow-hidden ${colorBorder || "border-border"}`}
+          >
+            {section.title && (
+              <div className={`flex items-center gap-3 px-6 py-4 border-b ${colorBorder || "border-border"} ${colorBg || ""}`}>
+                <span className={colorIcon}>{meta.icon}</span>
+                <h2 className="font-heading font-bold text-foreground text-lg">{section.title}</h2>
+              </div>
+            )}
+            {section.body && (
+              <div className="p-6">
+                <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:font-heading prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-li:text-muted-foreground">
+                  <ReactMarkdown>{section.body}</ReactMarkdown>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {isLoading && (
+        <div className="flex items-center gap-2 text-gold px-2">
+          <Loader2 size={14} className="animate-spin" />
+          <span className="text-xs">Gerando análise...</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default Insights;
