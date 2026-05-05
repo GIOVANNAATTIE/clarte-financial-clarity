@@ -83,13 +83,16 @@ const DESCRIPTION_PREFIXES = [
 
 function cleanDescription(raw: string | null): { main: string; detail: string } {
   if (!raw) return { main: "", detail: "" };
-  const upper = raw.toUpperCase();
+  let cleaned = raw;
+  // Remove leading dashes
+  cleaned = cleaned.replace(/^-+\s*/, "");
+  const upper = cleaned.toUpperCase();
   for (const prefix of DESCRIPTION_PREFIXES) {
     if (upper.startsWith(prefix)) {
-      return { main: raw.slice(prefix.length).trim(), detail: raw };
+      return { main: cleaned.slice(prefix.length).trim(), detail: cleaned };
     }
   }
-  return { main: raw, detail: "" };
+  return { main: cleaned, detail: "" };
 }
 
 type SortField = "date" | "description" | "category" | "costCenter" | "value" | "status";

@@ -29,6 +29,30 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+// Prefixes to strip from description
+const DESCRIPTION_PREFIXES = [
+  "PIX ENVIADO PARA ", "PIX RECEBIDO DE ",
+  "PAGAMENTO DE BOLETO ", "PAGAMENTO DE CONTA / TRIBUTO ",
+  "PAGAMENTO DE CONTA/TRIBUTO ",
+  "TRANSFERENCIA ENVIADA PARA ", "TRANSFERENCIA RECEBIDA DE ",
+  "TED ENVIADA PARA ", "TED RECEBIDA DE ",
+  "DOC ENVIADO PARA ", "DOC RECEBIDO DE ",
+];
+
+function cleanDescription(raw: string | null): { main: string; detail: string } {
+  if (!raw) return { main: "", detail: "" };
+  let cleaned = raw;
+  // Remove leading dashes
+  cleaned = cleaned.replace(/^-+\s*/, "");
+  const upper = cleaned.toUpperCase();
+  for (const prefix of DESCRIPTION_PREFIXES) {
+    if (upper.startsWith(prefix)) {
+      return { main: cleaned.slice(prefix.length).trim(), detail: cleaned };
+    }
+  }
+  return { main: cleaned, detail: "" };
+}
+
 type Lancamento = {
   id: string;
   tipo: string;
@@ -386,10 +410,17 @@ const Lancamentos = () => {
                   {filtered.map((l) => {
                     const sc = statusConfig[l.status] || statusConfig.pendente;
                     const StatusIcon = sc.icon;
+                    const { main: cleanedEntity } = cleanDescription(l.entity_name || null);
+                    const { main: cleanedDesc, detail: descDetail } = cleanDescription(l.descricao);
                     return (
                       <tr key={l.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                        <td className="px-5 py-3.5 text-sm text-foreground">{l.entity_name || "—"}</td>
-                        <td className="px-5 py-3.5 text-sm text-foreground">{l.descricao || "—"}</td>
+                        <td className="px-5 py-3.5 text-sm text-foreground">{cleanedEntity || "—"}</td>
+                        <td className="px-5 py-3.5 text-sm text-foreground">
+                          <div>
+                            <span className="font-medium">{cleanedDesc || "—"}</span>
+                            {descDetail && <span className="block text-xs text-muted-foreground mt-0.5">{descDetail}</span>}
+                          </div>
+                        </td>
                         <td className="px-5 py-3.5 text-sm text-muted-foreground">{l.categoria || "—"}</td>
                         <td className="px-5 py-3.5 text-sm text-muted-foreground">{l.centro_custo || "—"}</td>
                         <td className={`px-5 py-3.5 text-sm font-mono text-right font-medium ${tab === "receber" ? "text-success" : "text-destructive"}`}>
@@ -462,7 +493,7 @@ const Lancamentos = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Centro de Custo</Label>
+                <Label>Centro de Custo <span className="text-muted-foreground text-xs">(opcional)</span></Label>
                 <Select value={form.cost_center_id || "none"} onValueChange={(v) => setForm({ ...form, cost_center_id: v === "none" ? "" : v })}>
                   <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                   <SelectContent>

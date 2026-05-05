@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { supabase } from "@/integrations/supabase/client";
 
 const months = [
   { value: "all", label: "Todos os meses" },
@@ -38,44 +39,21 @@ const months = [
   { value: "12", label: "Dezembro" },
 ];
 
+const monthLabels: Record<string, string> = {
+  "01": "Jan", "02": "Fev", "03": "Mar", "04": "Abr",
+  "05": "Mai", "06": "Jun", "07": "Jul", "08": "Ago",
+  "09": "Set", "10": "Out", "11": "Nov", "12": "Dez",
+};
+
 const years = ["2024", "2025", "2026"];
 
 const currentDate = new Date();
 const formattedDate = format(currentDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
 
-const allCashFlowData = [
-  { mes: "Jan", monthKey: "01", entradas: 48500, saidas: 32200 },
-  { mes: "Fev", monthKey: "02", entradas: 52300, saidas: 35800 },
-  { mes: "Mar", monthKey: "03", entradas: 49100, saidas: 41200 },
-  { mes: "Abr", monthKey: "04", entradas: 61200, saidas: 38900 },
-  { mes: "Mai", monthKey: "05", entradas: 55800, saidas: 42100 },
-  { mes: "Jun", monthKey: "06", entradas: 67400, saidas: 39700 },
-  { mes: "Jul", monthKey: "07", entradas: 58200, saidas: 37500 },
-  { mes: "Ago", monthKey: "08", entradas: 63100, saidas: 40800 },
-  { mes: "Set", monthKey: "09", entradas: 59800, saidas: 43200 },
-  { mes: "Out", monthKey: "10", entradas: 71200, saidas: 45100 },
-  { mes: "Nov", monthKey: "11", entradas: 68500, saidas: 41900 },
-  { mes: "Dez", monthKey: "12", entradas: 74300, saidas: 48200 },
-];
-
-// DRE mensal (valores por mês para permitir filtro)
-const monthlyDreData: Record<string, { receitaBruta: number; deducoes: number; cmv: number; despesasOp: number }> = {
-  "01": { receitaBruta: 48500, deducoes: 2600, cmv: 18700, despesasOp: 13900 },
-  "02": { receitaBruta: 52300, deducoes: 2800, cmv: 20100, despesasOp: 15100 },
-  "03": { receitaBruta: 49100, deducoes: 2700, cmv: 19200, despesasOp: 14200 },
-  "04": { receitaBruta: 61200, deducoes: 3300, cmv: 23500, despesasOp: 17600 },
-  "05": { receitaBruta: 55800, deducoes: 3000, cmv: 21400, despesasOp: 16000 },
-  "06": { receitaBruta: 67400, deducoes: 3600, cmv: 25900, despesasOp: 19300 },
-  "07": { receitaBruta: 58200, deducoes: 3100, cmv: 22400, despesasOp: 16700 },
-  "08": { receitaBruta: 63100, deducoes: 3400, cmv: 24300, despesasOp: 18100 },
-  "09": { receitaBruta: 59800, deducoes: 3200, cmv: 23000, despesasOp: 17200 },
-  "10": { receitaBruta: 71200, deducoes: 3800, cmv: 27400, despesasOp: 20400 },
-  "11": { receitaBruta: 68500, deducoes: 3700, cmv: 26300, despesasOp: 19600 },
-  "12": { receitaBruta: 74300, deducoes: 4000, cmv: 28600, despesasOp: 21300 },
-};
-
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+
+type RawTx = { date: string; value: number; status: string };
 
 const Dashboard = () => {
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear().toString());
@@ -83,6 +61,20 @@ const Dashboard = () => {
   const [filterMode, setFilterMode] = useState<"months" | "custom">("months");
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
   const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
+  const [transactions, setTransactions] = useState<RawTx[]>([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase.from("transactions").select("date, value, status").eq("user_id", user.id);
+      if (data) setTransactions(data);
+    };
+    fetchData();
+  }, []);
+
+  // Filter out cancelled transactions
+  const activeTx = useMemo(() => transactions.filter(t => t.status !== "cancelado"), [transactions]);
 
   const toggleMonth = (value: string) => {
     setSelectedMonths((prev) =>
@@ -112,67 +104,53 @@ const Dashboard = () => {
   const formatShortDate = (date: Date) =>
     date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-  // Filtrar dados com base nos filtros selecionados
-  const filteredCashFlow = (() => {
+  // Filter transactions based on selected filters
+  const filteredTx = useMemo(() => {
     if (filterMode === "custom" && customDateFrom && customDateTo) {
-      const fromMonth = customDateFrom.getMonth() + 1;
-      const toMonth = customDateTo.getMonth() + 1;
-      return allCashFlowData.filter((d) => {
-        const m = parseInt(d.monthKey);
-        return m >= fromMonth && m <= toMonth;
+      const fromStr = format(customDateFrom, "yyyy-MM-dd");
+      const toStr = format(customDateTo, "yyyy-MM-dd");
+      return activeTx.filter(t => t.date >= fromStr && t.date <= toStr);
+    }
+    // Filter by year
+    let filtered = activeTx.filter(t => t.date.startsWith(selectedYear));
+    // Filter by months if specific months selected
+    if (selectedMonths.length > 0 && selectedMonths.length < 12) {
+      filtered = filtered.filter(t => {
+        const m = t.date.substring(5, 7);
+        return selectedMonths.includes(m);
       });
     }
-    if (selectedMonths.length === 0 || selectedMonths.length === 12) return allCashFlowData;
-    return allCashFlowData.filter((d) => selectedMonths.includes(d.monthKey));
-  })();
+    return filtered;
+  }, [activeTx, filterMode, selectedYear, selectedMonths, customDateFrom, customDateTo]);
 
-  // DRE filtrado
-  const filteredDre = (() => {
-    const activeMonths = (() => {
-      if (filterMode === "custom" && customDateFrom && customDateTo) {
-        const fromMonth = customDateFrom.getMonth() + 1;
-        const toMonth = customDateTo.getMonth() + 1;
-        return Object.keys(monthlyDreData).filter((k) => {
-          const m = parseInt(k);
-          return m >= fromMonth && m <= toMonth;
-        });
-      }
-      if (selectedMonths.length === 0 || selectedMonths.length === 12) return Object.keys(monthlyDreData);
-      return selectedMonths;
-    })();
+  // Build chart data grouped by month
+  const cashFlowData = useMemo(() => {
+    const byMonth: Record<string, { entradas: number; saidas: number }> = {};
+    filteredTx.forEach(t => {
+      const monthKey = t.date.substring(5, 7);
+      if (!byMonth[monthKey]) byMonth[monthKey] = { entradas: 0, saidas: 0 };
+      if (t.value >= 0) byMonth[monthKey].entradas += t.value;
+      else byMonth[monthKey].saidas += Math.abs(t.value);
+    });
+    return Object.entries(byMonth)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, val]) => ({
+        mes: monthLabels[key] || key,
+        monthKey: key,
+        ...val,
+      }));
+  }, [filteredTx]);
 
-    const totals = activeMonths.reduce(
-      (acc, key) => {
-        const d = monthlyDreData[key];
-        if (!d) return acc;
-        return {
-          receitaBruta: acc.receitaBruta + d.receitaBruta,
-          deducoes: acc.deducoes + d.deducoes,
-          cmv: acc.cmv + d.cmv,
-          despesasOp: acc.despesasOp + d.despesasOp,
-        };
-      },
-      { receitaBruta: 0, deducoes: 0, cmv: 0, despesasOp: 0 }
-    );
-
-    const receitaLiquida = totals.receitaBruta - totals.deducoes;
-    const lucroBruto = receitaLiquida - totals.cmv;
-    const resultadoOp = lucroBruto - totals.despesasOp;
-
-    return [
-      { label: "Receita Bruta", value: totals.receitaBruta, type: "income" as const },
-      { label: "(-) Deduções", value: -totals.deducoes, type: "expense" as const },
-      { label: "Receita Líquida", value: receitaLiquida, type: "income" as const },
-      { label: "(-) CMV", value: -totals.cmv, type: "expense" as const },
-      { label: "Lucro Bruto", value: lucroBruto, type: "income" as const },
-      { label: "(-) Despesas Operacionais", value: -totals.despesasOp, type: "expense" as const },
-      { label: "Resultado Operacional", value: resultadoOp, type: resultadoOp >= 0 ? "income" as const : "expense" as const },
-    ];
-  })();
-
-  const totalEntradas = filteredCashFlow.reduce((s, d) => s + d.entradas, 0);
-  const totalSaidas = filteredCashFlow.reduce((s, d) => s + d.saidas, 0);
+  const totalEntradas = filteredTx.filter(t => t.value >= 0).reduce((s, t) => s + t.value, 0);
+  const totalSaidas = filteredTx.filter(t => t.value < 0).reduce((s, t) => s + Math.abs(t.value), 0);
   const saldo = totalEntradas - totalSaidas;
+
+  // Overdue calculations from real data
+  const today = format(new Date(), "yyyy-MM-dd");
+  const overdueRecebiveis = activeTx.filter(t => t.value > 0 && t.status === "pendente" && t.date < today);
+  const overduePagaveis = activeTx.filter(t => t.value < 0 && t.status === "pendente" && t.date < today);
+  const totalOverdueRecebiveis = overdueRecebiveis.reduce((s, t) => s + t.value, 0);
+  const totalOverduePagaveis = overduePagaveis.reduce((s, t) => s + Math.abs(t.value), 0);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -203,7 +181,6 @@ const Dashboard = () => {
 
           {filterMode === "months" ? (
             <>
-              {/* Ano */}
               <Select value={selectedYear} onValueChange={setSelectedYear}>
                 <SelectTrigger className="w-[100px] h-9 text-sm">
                   <SelectValue placeholder="Ano" />
@@ -215,7 +192,6 @@ const Dashboard = () => {
                 </SelectContent>
               </Select>
 
-              {/* Multi-select meses */}
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="h-9 text-sm min-w-[140px] justify-start font-normal">
@@ -299,25 +275,19 @@ const Dashboard = () => {
           icon={<TrendingUp size={20} />}
           label="Total Entradas"
           value={formatCurrency(totalEntradas)}
-          trend="+12.5%"
-          trendUp
         />
         <KpiCard
           icon={<TrendingDown size={20} />}
           label="Total Saídas"
           value={formatCurrency(totalSaidas)}
-          trend="+8.2%"
-          trendUp={false}
         />
         <KpiCard
           icon={<DollarSign size={20} />}
           label="Saldo do Período"
           value={formatCurrency(saldo)}
-          trend="+18.3%"
-          trendUp
+          highlight={saldo >= 0}
         />
       </div>
-
 
       {/* Contas em Atraso */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -331,25 +301,8 @@ const Dashboard = () => {
               <p className="text-xs text-muted-foreground">Títulos vencidos não recebidos</p>
             </div>
           </div>
-          <p className="text-2xl font-bold font-heading text-destructive mb-3">{formatCurrency(42850)}</p>
-          <div className="space-y-2">
-            {[
-              { cliente: "Cliente ABC Ltda", valor: 18500, dias: 32 },
-              { cliente: "Distribuidora Norte", valor: 12350, dias: 15 },
-              { cliente: "Serviços Delta", valor: 8200, dias: 8 },
-              { cliente: "Comércio Alfa", valor: 3800, dias: 5 },
-            ].map((item, i) => (
-              <div key={i} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-foreground truncate">{item.cliente}</p>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Clock size={10} /> {item.dias} dias em atraso
-                  </p>
-                </div>
-                <span className="text-sm font-mono text-destructive font-medium">{formatCurrency(item.valor)}</span>
-              </div>
-            ))}
-          </div>
+          <p className="text-2xl font-bold font-heading text-destructive mb-3">{formatCurrency(totalOverdueRecebiveis)}</p>
+          {overdueRecebiveis.length === 0 && <p className="text-sm text-muted-foreground">Nenhum título em atraso</p>}
         </div>
 
         <div className="bg-card rounded-xl border border-border p-5 shadow-[var(--shadow-card)]">
@@ -362,25 +315,8 @@ const Dashboard = () => {
               <p className="text-xs text-muted-foreground">Títulos vencidos não pagos</p>
             </div>
           </div>
-          <p className="text-2xl font-bold font-heading text-amber-500 mb-3">{formatCurrency(27600)}</p>
-          <div className="space-y-2">
-            {[
-              { fornecedor: "Fornecedor X Materiais", valor: 12400, dias: 20 },
-              { fornecedor: "Energia Elétrica", valor: 6800, dias: 12 },
-              { fornecedor: "Aluguel Sala Comercial", valor: 5200, dias: 7 },
-              { fornecedor: "Internet & Telecom", valor: 3200, dias: 3 },
-            ].map((item, i) => (
-              <div key={i} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-foreground truncate">{item.fornecedor}</p>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Clock size={10} /> {item.dias} dias em atraso
-                  </p>
-                </div>
-                <span className="text-sm font-mono text-amber-500 font-medium">{formatCurrency(item.valor)}</span>
-              </div>
-            ))}
-          </div>
+          <p className="text-2xl font-bold font-heading text-amber-500 mb-3">{formatCurrency(totalOverduePagaveis)}</p>
+          {overduePagaveis.length === 0 && <p className="text-sm text-muted-foreground">Nenhum título em atraso</p>}
         </div>
       </div>
 
@@ -391,65 +327,46 @@ const Dashboard = () => {
           <h2 className="font-heading font-semibold text-foreground">Fluxo de Caixa</h2>
         </div>
         <div className="h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={filteredCashFlow}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(0, 0%, 90%)" />
-              <XAxis dataKey="mes" tick={{ fontSize: 12, fill: "hsl(0, 0%, 45%)" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "hsl(0, 0%, 45%)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-              <Tooltip
-                contentStyle={{
-                  borderRadius: "8px",
-                  border: "1px solid hsl(0, 0%, 90%)",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-                  fontSize: "13px",
-                }}
-                formatter={(value: number) => formatCurrency(value)}
-              />
-              <Legend />
-              <Bar dataKey="entradas" name="Entradas" fill="hsl(152, 60%, 40%)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="saidas" name="Saídas" fill="hsl(0, 65%, 55%)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {cashFlowData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={cashFlowData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(0, 0%, 90%)" />
+                <XAxis dataKey="mes" tick={{ fontSize: 12, fill: "hsl(0, 0%, 45%)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "hsl(0, 0%, 45%)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <Tooltip
+                  contentStyle={{
+                    borderRadius: "8px",
+                    border: "1px solid hsl(0, 0%, 90%)",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                    fontSize: "13px",
+                  }}
+                  formatter={(value: number) => formatCurrency(value)}
+                />
+                <Legend />
+                <Bar dataKey="entradas" name="Entradas" fill="hsl(152, 60%, 40%)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="saidas" name="Saídas" fill="hsl(0, 65%, 55%)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+              Nenhum dado para o período selecionado
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-function KpiCard({ icon, label, value, trend, trendUp }: { icon: React.ReactNode; label: string; value: string; trend: string; trendUp: boolean }) {
+function KpiCard({ icon, label, value, highlight }: { icon: React.ReactNode; label: string; value: string; highlight?: boolean }) {
   return (
     <div className="bg-card rounded-xl border border-border p-5 shadow-[var(--shadow-card)]">
       <div className="flex items-center justify-between mb-3">
         <div className="p-2 rounded-lg bg-primary/5">{icon}</div>
-        <span className={`text-xs font-semibold px-2 py-1 rounded-full ${trendUp ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
-          {trend}
-        </span>
       </div>
       <p className="text-2xl font-bold font-heading text-foreground">{value}</p>
       <p className="text-xs text-muted-foreground mt-1">{label}</p>
     </div>
-  );
-}
-
-function FileIcon(props: { className?: string; size?: number }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={props.size || 24}
-      height={props.size || 24}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={props.className}
-    >
-      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
-      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-      <path d="M10 18v-4" />
-      <path d="M14 18v-2" />
-    </svg>
   );
 }
 
