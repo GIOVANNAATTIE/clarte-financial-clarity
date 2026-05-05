@@ -9,10 +9,13 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Search, Loader2, MapPin, Building2, Key } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Loader2, MapPin, Building2, Key, Tag } from "lucide-react";
 import { initialClientesFornecedores, type ClienteFornecedor } from "@/data/cadastros";
+import { initialCategorias } from "@/data/cadastros";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
+
+type CategoryOption = { id: number; nome: string; tipo: string };
 
 const emptyEntity = (tipo: "cliente" | "fornecedor"): ClienteFornecedor => ({
   id: Date.now(),
@@ -32,6 +35,7 @@ const emptyEntity = (tipo: "cliente" | "fornecedor"): ClienteFornecedor => ({
   conta: "",
   tipoConta: "",
   chavePix: "",
+  categoriaPadrao: "",
 });
 
 const ClientesFornecedores = () => {
@@ -294,6 +298,31 @@ const ClientesFornecedores = () => {
                 <Input value={editItem.chavePix} onChange={e => setEditItem({ ...editItem, chavePix: e.target.value })} placeholder="Informe a chave PIX" />
               </div>
             </div>
+
+            {/* Categoria Padrão - only for fornecedores */}
+            {editItem.tipo === "fornecedor" && (
+              <>
+                <Separator />
+                <div>
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    <Tag size={13} /> Categoria Padrão
+                  </h3>
+                  <div className="space-y-1.5">
+                    <Label>Categoria vinculada (auto-preenchimento em lançamentos)</Label>
+                    <Select value={editItem.categoriaPadrao || "none"} onValueChange={v => setEditItem({ ...editItem, categoriaPadrao: v === "none" ? "" : v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione uma categoria..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhuma</SelectItem>
+                        {initialCategorias.map(c => (
+                          <SelectItem key={c.id} value={c.nome}>{c.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-muted-foreground">Ao criar lançamentos para este fornecedor, a categoria será sugerida automaticamente</p>
+                  </div>
+                </div>
+              </>
+            )}
 
             <div className="flex justify-end gap-3 pt-3">
               <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>

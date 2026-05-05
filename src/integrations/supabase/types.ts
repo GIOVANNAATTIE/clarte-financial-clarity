@@ -76,6 +76,7 @@ export type Database = {
           address: string | null
           bank_info: string | null
           created_at: string
+          default_category_id: string | null
           document: string | null
           email: string | null
           id: string
@@ -90,6 +91,7 @@ export type Database = {
           address?: string | null
           bank_info?: string | null
           created_at?: string
+          default_category_id?: string | null
           document?: string | null
           email?: string | null
           id?: string
@@ -104,6 +106,7 @@ export type Database = {
           address?: string | null
           bank_info?: string | null
           created_at?: string
+          default_category_id?: string | null
           document?: string | null
           email?: string | null
           id?: string
@@ -114,7 +117,15 @@ export type Database = {
           user_id?: string
           zip_code?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "entities_default_category_id_fkey"
+            columns: ["default_category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       settings: {
         Row: {

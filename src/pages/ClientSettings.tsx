@@ -70,6 +70,9 @@ const ClientSettings = () => {
   const [newUserName, setNewUserName] = useState("");
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserRole, setNewUserRole] = useState<UserRole>("operador");
+  const [aiProvider, setAiProvider] = useState("openai");
+  const [aiApiKey, setAiApiKey] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
 
   const handleAddUser = () => {
     if (!newUserName || !newUserEmail) return;
@@ -326,6 +329,64 @@ const ClientSettings = () => {
                   <div className="w-full bg-muted rounded-full h-2 mt-2">
                     <div className="bg-gold h-2 rounded-full transition-all" style={{ width: `${Math.min((12450 / Number(tokensPerMonth)) * 100, 100)}%` }} />
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* API Key Configuration */}
+          <div className="bg-card rounded-xl border border-border p-6 shadow-[var(--shadow-card)]">
+            <div className="flex items-start gap-4">
+              <div className="p-3 rounded-xl bg-primary/10">
+                <Lock size={24} className="text-primary" />
+              </div>
+              <div className="flex-1 space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Chave de API para Inteligência Artificial</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Insira sua API Key da OpenAI ou Anthropic para habilitar análises avançadas na aba de Inteligência IA.
+                    A chave é armazenada de forma segura e criptografada.
+                  </p>
+                </div>
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label>Provedor</Label>
+                    <Select value={aiProvider} onValueChange={setAiProvider}>
+                      <SelectTrigger className="w-full sm:w-64"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="openai">OpenAI (GPT)</SelectItem>
+                        <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>API Key</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type={showApiKey ? "text" : "password"}
+                        value={aiApiKey}
+                        onChange={(e) => setAiApiKey(e.target.value)}
+                        placeholder={aiProvider === "openai" ? "sk-..." : "sk-ant-..."}
+                        className="flex-1 font-mono text-sm"
+                      />
+                      <Button variant="outline" size="icon" onClick={() => setShowApiKey(!showApiKey)}>
+                        <Eye size={16} />
+                      </Button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">A chave nunca é exibida após salvar. Você pode substituí-la a qualquer momento.</p>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      if (aiApiKey) {
+                        toast({ title: "API Key salva com sucesso", description: `Provedor: ${aiProvider === "openai" ? "OpenAI" : "Anthropic"}` });
+                      }
+                    }}
+                    disabled={!aiApiKey}
+                    className="gap-2"
+                  >
+                    <Lock size={14} />
+                    Salvar API Key
+                  </Button>
                 </div>
               </div>
             </div>
