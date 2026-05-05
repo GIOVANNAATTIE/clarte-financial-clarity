@@ -190,8 +190,8 @@ const Transactions = () => {
       return sortDir === "asc" ? cmp : -cmp;
     });
 
-  const categories = [...new Set(transactions.map((t) => t.categoria))];
-  const costCenters = [...new Set(transactions.map((t) => t.centroCusto))];
+  const categories = [...new Set(transactions.map((t) => t.categoria).filter(Boolean))];
+  const costCenters = [...new Set(transactions.map((t) => t.centroCusto).filter(Boolean))];
 
   const handleEdit = (t: Transaction) => {
     setEditTransaction({ ...t });
