@@ -1,18 +1,44 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Upload, Loader2, MapPin, Building2, Key } from "lucide-react";
 import { initialClientesFornecedores, type ClienteFornecedor } from "@/data/cadastros";
+import { useToast } from "@/hooks/use-toast";
+import { Separator } from "@/components/ui/separator";
+
+const emptyEntity = (tipo: "cliente" | "fornecedor"): ClienteFornecedor => ({
+  id: Date.now(),
+  nome: "",
+  tipo,
+  documento: "",
+  contato: "",
+  email: "",
+  telefone: "",
+  cep: "",
+  endereco: "",
+  bairro: "",
+  cidade: "",
+  estado: "",
+  banco: "",
+  agencia: "",
+  conta: "",
+  tipoConta: "",
+  chavePix: "",
+  logoUrl: "",
+});
 
 const ClientesFornecedores = () => {
   const allItems = initialClientesFornecedores;
+  const { toast } = useToast();
 
-  // Clientes state
   const [clientes, setClientes] = useState<ClienteFornecedor[]>(allItems.filter(i => i.tipo === "cliente"));
   const [clienteSearch, setClienteSearch] = useState("");
   const [clienteDialogOpen, setClienteDialogOpen] = useState(false);
@@ -20,7 +46,6 @@ const ClientesFornecedores = () => {
   const [clienteDeleteOpen, setClienteDeleteOpen] = useState(false);
   const [clienteDeleteId, setClienteDeleteId] = useState<number | null>(null);
 
-  // Fornecedores state
   const [fornecedores, setFornecedores] = useState<ClienteFornecedor[]>(allItems.filter(i => i.tipo === "fornecedor"));
   const [fornecedorSearch, setFornecedorSearch] = useState("");
   const [fornecedorDialogOpen, setFornecedorDialogOpen] = useState(false);
@@ -28,8 +53,58 @@ const ClientesFornecedores = () => {
   const [fornecedorDeleteOpen, setFornecedorDeleteOpen] = useState(false);
   const [fornecedorDeleteId, setFornecedorDeleteId] = useState<number | null>(null);
 
+  const [cepLoading, setCepLoading] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
+  // ViaCEP lookup
+  const fetchCep = async (cep: string, setItem: (item: ClienteFornecedor) => void, currentItem: ClienteFornecedor) => {
+    const cleanCep = cep.replace(/\D/g, "");
+    if (cleanCep.length !== 8) return;
+
+    setCepLoading(true);
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await res.json();
+      if (data.erro) {
+        toast({ title: "CEP não encontrado", variant: "destructive" });
+      } else {
+        setItem({
+          ...currentItem,
+          cep,
+          endereco: data.logradouro || "",
+          bairro: data.bairro || "",
+          cidade: data.localidade || "",
+          estado: data.uf || "",
+        });
+        toast({ title: "Endereço preenchido automaticamente" });
+      }
+    } catch {
+      toast({ title: "Erro ao buscar CEP", variant: "destructive" });
+    }
+    setCepLoading(false);
+  };
+
+  // Logo upload (local preview)
+  const handleLogoUpload = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setItem: (item: ClienteFornecedor) => void,
+    currentItem: ClienteFornecedor
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Apenas imagens são aceitas", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setItem({ ...currentItem, logoUrl: ev.target?.result as string });
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Clientes handlers
-  const handleNewCliente = () => { setEditCliente({ id: Date.now(), nome: "", tipo: "cliente", documento: "", contato: "" }); setClienteDialogOpen(true); };
+  const handleNewCliente = () => { setEditCliente(emptyEntity("cliente")); setClienteDialogOpen(true); };
   const handleEditCliente = (item: ClienteFornecedor) => { setEditCliente({ ...item }); setClienteDialogOpen(true); };
   const handleSaveCliente = () => {
     if (!editCliente || !editCliente.nome.trim()) return;
@@ -42,7 +117,7 @@ const ClientesFornecedores = () => {
   };
 
   // Fornecedores handlers
-  const handleNewFornecedor = () => { setEditFornecedor({ id: Date.now(), nome: "", tipo: "fornecedor", documento: "", contato: "" }); setFornecedorDialogOpen(true); };
+  const handleNewFornecedor = () => { setEditFornecedor(emptyEntity("fornecedor")); setFornecedorDialogOpen(true); };
   const handleEditFornecedor = (item: ClienteFornecedor) => { setEditFornecedor({ ...item }); setFornecedorDialogOpen(true); };
   const handleSaveFornecedor = () => {
     if (!editFornecedor || !editFornecedor.nome.trim()) return;
@@ -57,7 +132,13 @@ const ClientesFornecedores = () => {
   const filteredClientes = clientes.filter(i => i.nome.toLowerCase().includes(clienteSearch.toLowerCase()));
   const filteredFornecedores = fornecedores.filter(i => i.nome.toLowerCase().includes(fornecedorSearch.toLowerCase()));
 
-  const renderTable = (items: ClienteFornecedor[], onEdit: (i: ClienteFornecedor) => void, onDelete: (id: number) => void, setDeleteId: (id: number) => void, setDeleteOpen: (v: boolean) => void, label: string) => (
+  const renderTable = (
+    items: ClienteFornecedor[],
+    onEdit: (i: ClienteFornecedor) => void,
+    setDeleteId: (id: number) => void,
+    setDeleteOpen: (v: boolean) => void,
+    label: string
+  ) => (
     <div className="bg-card rounded-xl border border-border shadow-[var(--shadow-card)] overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full">
@@ -65,16 +146,33 @@ const ClientesFornecedores = () => {
             <tr className="border-b border-border bg-muted/30">
               <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center">Nome</th>
               <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center hidden md:table-cell">Documento</th>
-              <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center hidden md:table-cell">Contato</th>
+              <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center hidden md:table-cell">E-mail</th>
+              <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center hidden lg:table-cell">Telefone</th>
+              <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center hidden lg:table-cell">Cidade/UF</th>
               <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center w-24">Ações</th>
             </tr>
           </thead>
           <tbody>
             {items.map(item => (
               <tr key={item.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                <td className="px-5 py-3.5 text-sm text-foreground">{item.nome}</td>
-                <td className="px-5 py-3.5 text-sm text-muted-foreground hidden md:table-cell">{item.documento}</td>
-                <td className="px-5 py-3.5 text-sm text-muted-foreground hidden md:table-cell">{item.contato}</td>
+                <td className="px-5 py-3.5 text-sm text-foreground">
+                  <div className="flex items-center gap-2">
+                    {item.logoUrl ? (
+                      <img src={item.logoUrl} alt="" className="w-7 h-7 rounded-full object-cover border border-border" />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground">
+                        {item.nome.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    {item.nome}
+                  </div>
+                </td>
+                <td className="px-5 py-3.5 text-sm text-muted-foreground hidden md:table-cell text-center">{item.documento || "—"}</td>
+                <td className="px-5 py-3.5 text-sm text-muted-foreground hidden md:table-cell text-center">{item.email || "—"}</td>
+                <td className="px-5 py-3.5 text-sm text-muted-foreground hidden lg:table-cell text-center">{item.telefone || "—"}</td>
+                <td className="px-5 py-3.5 text-sm text-muted-foreground hidden lg:table-cell text-center">
+                  {item.cidade && item.estado ? `${item.cidade}/${item.estado}` : "—"}
+                </td>
                 <td className="px-5 py-3.5 text-center">
                   <div className="flex items-center justify-center gap-1">
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(item)}><Pencil size={14} /></Button>
@@ -84,7 +182,7 @@ const ClientesFornecedores = () => {
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={4} className="px-5 py-8 text-center text-sm text-muted-foreground">Nenhum registro encontrado</td></tr>
+              <tr><td colSpan={6} className="px-5 py-8 text-center text-sm text-muted-foreground">Nenhum registro encontrado</td></tr>
             )}
           </tbody>
         </table>
@@ -95,16 +193,166 @@ const ClientesFornecedores = () => {
     </div>
   );
 
-  const renderDialog = (open: boolean, setOpen: (v: boolean) => void, editItem: ClienteFornecedor | null, setEditItem: (i: ClienteFornecedor | null) => void, items: ClienteFornecedor[], onSave: () => void, tipo: string) => (
+  const renderFormDialog = (
+    open: boolean,
+    setOpen: (v: boolean) => void,
+    editItem: ClienteFornecedor | null,
+    setEditItem: (i: ClienteFornecedor) => void,
+    items: ClienteFornecedor[],
+    onSave: () => void,
+    tipo: string
+  ) => (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{editItem && items.some(i => i.id === editItem.id) ? "Editar" : "Novo"} {tipo}</DialogTitle></DialogHeader>
         {editItem && (
-          <div className="space-y-4 pt-2">
-            <div className="space-y-2"><Label>Nome</Label><Input value={editItem.nome} onChange={e => setEditItem({ ...editItem, nome: e.target.value })} /></div>
-            <div className="space-y-2"><Label>Documento (CNPJ/CPF)</Label><Input value={editItem.documento} onChange={e => setEditItem({ ...editItem, documento: e.target.value })} /></div>
-            <div className="space-y-2"><Label>Contato</Label><Input value={editItem.contato} onChange={e => setEditItem({ ...editItem, contato: e.target.value })} /></div>
-            <div className="flex justify-end gap-3 pt-2">
+          <div className="space-y-5 pt-2">
+            {/* Logo Upload */}
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                {editItem.logoUrl ? (
+                  <img src={editItem.logoUrl} alt="Logo" className="w-16 h-16 rounded-xl object-cover border-2 border-border" />
+                ) : (
+                  <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center border-2 border-dashed border-border">
+                    <Upload size={20} className="text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+              <div>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => handleLogoUpload(e, setEditItem, editItem)}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => logoInputRef.current?.click()}
+                >
+                  <Upload size={14} />
+                  {editItem.logoUrl ? "Trocar Logo" : "Upload de Logo"}
+                </Button>
+                <p className="text-[10px] text-muted-foreground mt-1">Usado nos relatórios e papel timbrado</p>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Dados Pessoais */}
+            <div>
+              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Dados Cadastrais</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Nome / Razão Social</Label>
+                  <Input value={editItem.nome} onChange={e => setEditItem({ ...editItem, nome: e.target.value })} placeholder="Nome completo ou razão social" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>CPF / CNPJ</Label>
+                  <Input value={editItem.documento} onChange={e => setEditItem({ ...editItem, documento: e.target.value })} placeholder="000.000.000-00" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>E-mail</Label>
+                  <Input type="email" value={editItem.email} onChange={e => setEditItem({ ...editItem, email: e.target.value })} placeholder="email@exemplo.com" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Telefone</Label>
+                  <Input value={editItem.telefone} onChange={e => setEditItem({ ...editItem, telefone: e.target.value })} placeholder="(00) 00000-0000" />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Endereço com ViaCEP */}
+            <div>
+              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <MapPin size={13} /> Endereço
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label>CEP</Label>
+                  <div className="relative">
+                    <Input
+                      value={editItem.cep}
+                      onChange={e => setEditItem({ ...editItem, cep: e.target.value })}
+                      onBlur={() => fetchCep(editItem.cep, setEditItem, editItem)}
+                      placeholder="00000-000"
+                      className="pr-8"
+                    />
+                    {cepLoading && <Loader2 size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 animate-spin text-muted-foreground" />}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Preenche o endereço automaticamente</p>
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Logradouro</Label>
+                  <Input value={editItem.endereco} onChange={e => setEditItem({ ...editItem, endereco: e.target.value })} placeholder="Rua, Av..." />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Bairro</Label>
+                  <Input value={editItem.bairro} onChange={e => setEditItem({ ...editItem, bairro: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Cidade</Label>
+                  <Input value={editItem.cidade} onChange={e => setEditItem({ ...editItem, cidade: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Estado</Label>
+                  <Input value={editItem.estado} onChange={e => setEditItem({ ...editItem, estado: e.target.value })} maxLength={2} placeholder="UF" />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Dados Bancários */}
+            <div>
+              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Building2 size={13} /> Dados Bancários
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Banco</Label>
+                  <Input value={editItem.banco} onChange={e => setEditItem({ ...editItem, banco: e.target.value })} placeholder="Ex: Itaú, Bradesco..." />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Tipo de Conta</Label>
+                  <Select value={editItem.tipoConta || undefined} onValueChange={v => setEditItem({ ...editItem, tipoConta: v })}>
+                    <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="corrente">Conta Corrente</SelectItem>
+                      <SelectItem value="poupanca">Poupança</SelectItem>
+                      <SelectItem value="pagamento">Conta Pagamento</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Agência</Label>
+                  <Input value={editItem.agencia} onChange={e => setEditItem({ ...editItem, agencia: e.target.value })} placeholder="0000" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Conta</Label>
+                  <Input value={editItem.conta} onChange={e => setEditItem({ ...editItem, conta: e.target.value })} placeholder="00000-0" />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Chave PIX */}
+            <div>
+              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Key size={13} /> Chave PIX
+              </h3>
+              <div className="space-y-1.5">
+                <Label>Chave PIX (CPF, CNPJ, E-mail, Telefone ou Aleatória)</Label>
+                <Input value={editItem.chavePix} onChange={e => setEditItem({ ...editItem, chavePix: e.target.value })} placeholder="Informe a chave PIX" />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3">
               <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
               <Button onClick={onSave}>Salvar</Button>
             </div>
@@ -137,7 +385,6 @@ const ClientesFornecedores = () => {
           <TabsTrigger value="fornecedores">Fornecedores</TabsTrigger>
         </TabsList>
 
-        {/* Clientes Tab */}
         <TabsContent value="clientes" className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="bg-card rounded-xl border border-border p-4 shadow-[var(--shadow-card)] flex-1">
@@ -150,10 +397,9 @@ const ClientesFornecedores = () => {
               <Plus size={18} /> Novo Cliente
             </Button>
           </div>
-          {renderTable(filteredClientes, handleEditCliente, confirmDeleteCliente, setClienteDeleteId, setClienteDeleteOpen, "clientes")}
+          {renderTable(filteredClientes, handleEditCliente, setClienteDeleteId, setClienteDeleteOpen, "clientes")}
         </TabsContent>
 
-        {/* Fornecedores Tab */}
         <TabsContent value="fornecedores" className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="bg-card rounded-xl border border-border p-4 shadow-[var(--shadow-card)] flex-1">
@@ -166,16 +412,14 @@ const ClientesFornecedores = () => {
               <Plus size={18} /> Novo Fornecedor
             </Button>
           </div>
-          {renderTable(filteredFornecedores, handleEditFornecedor, confirmDeleteFornecedor, setFornecedorDeleteId, setFornecedorDeleteOpen, "fornecedores")}
+          {renderTable(filteredFornecedores, handleEditFornecedor, setFornecedorDeleteId, setFornecedorDeleteOpen, "fornecedores")}
         </TabsContent>
       </Tabs>
 
-      {/* Clientes Dialogs */}
-      {renderDialog(clienteDialogOpen, setClienteDialogOpen, editCliente, setEditCliente, clientes, handleSaveCliente, "Cliente")}
+      {renderFormDialog(clienteDialogOpen, setClienteDialogOpen, editCliente, (i) => setEditCliente(i), clientes, handleSaveCliente, "Cliente")}
       {renderDeleteDialog(clienteDeleteOpen, setClienteDeleteOpen, confirmDeleteCliente, "Cliente")}
 
-      {/* Fornecedores Dialogs */}
-      {renderDialog(fornecedorDialogOpen, setFornecedorDialogOpen, editFornecedor, setEditFornecedor, fornecedores, handleSaveFornecedor, "Fornecedor")}
+      {renderFormDialog(fornecedorDialogOpen, setFornecedorDialogOpen, editFornecedor, (i) => setEditFornecedor(i), fornecedores, handleSaveFornecedor, "Fornecedor")}
       {renderDeleteDialog(fornecedorDeleteOpen, setFornecedorDeleteOpen, confirmDeleteFornecedor, "Fornecedor")}
     </div>
   );
