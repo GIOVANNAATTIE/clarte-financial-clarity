@@ -17,7 +17,7 @@ import { Separator } from "@/components/ui/separator";
 
 type CategoryOption = { id: number; nome: string; tipo: string };
 
-const emptyEntity = (tipo: "cliente" | "fornecedor"): ClienteFornecedor & { categoriaPadrao: string } => ({
+const emptyEntity = (tipo: "cliente" | "fornecedor"): ClienteFornecedor => ({
   id: Date.now(),
   nome: "",
   tipo,
@@ -35,6 +35,7 @@ const emptyEntity = (tipo: "cliente" | "fornecedor"): ClienteFornecedor & { cate
   conta: "",
   tipoConta: "",
   chavePix: "",
+  categoriaPadrao: "",
 });
 
 const ClientesFornecedores = () => {
