@@ -18,7 +18,6 @@ export type ClienteFornecedor = {
   conta: string;
   tipoConta: string;
   chavePix: string;
-  logoUrl: string;
 };
 
 export type Categoria = {
