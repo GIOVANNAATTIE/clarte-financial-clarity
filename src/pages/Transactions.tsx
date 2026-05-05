@@ -149,11 +149,20 @@ const Transactions = () => {
    const handleOFXImport = async (file: File) => {
      setImporting(true);
 
-     // Obter user_id ANTES do FileReader para evitar perda de sessão
-     const { data: { session } } = await supabase.auth.getSession();
-     const userId = session?.user?.id;
-     if (!userId) {
+     // Garante sessão restaurada e token válido antes de ler/enviar qualquer dado do OFX.
+     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+     const accessToken = sessionData.session?.access_token;
+     const userId = sessionData.session?.user?.id;
+
+     if (sessionError || !accessToken || !userId) {
        toast({ title: "Usuário não identificado", description: "Faça login novamente para importar.", variant: "destructive" });
+       setImporting(false);
+       return;
+     }
+
+     const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
+     if (userError || userData.user?.id !== userId) {
+       toast({ title: "Sessão expirada", description: "Entre novamente para importar o arquivo OFX.", variant: "destructive" });
        setImporting(false);
        return;
      }
@@ -184,11 +193,12 @@ const Transactions = () => {
           } else {
             // Auto-create entity
             const entityType = ofx.type === "entrada" ? "cliente" : "fornecedor";
-            const { data: newEntity } = await supabase.from("entities").insert({
+             const { data: newEntity, error: entityError } = await supabase.from("entities").insert({
                user_id: userId,
               name: ofx.description,
               type: entityType,
             }).select("id, name, type, default_category_id").single();
+             if (entityError) throw entityError;
             if (newEntity) {
               entityId = newEntity.id;
               setEntities((prev) => [...prev, newEntity]);
@@ -197,7 +207,7 @@ const Transactions = () => {
 
           const value = ofx.type === "saida" ? -ofx.value : ofx.value;
 
-          await supabase.from("transactions").insert({
+           const { error: transactionError } = await supabase.from("transactions").insert({
             user_id: userId,
             date: ofx.date,
             description: ofx.description,
@@ -206,6 +216,7 @@ const Transactions = () => {
             entity_id: entityId,
             status: "pendente",
           });
+           if (transactionError) throw transactionError;
           created++;
         }
 
