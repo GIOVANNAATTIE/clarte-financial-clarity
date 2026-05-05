@@ -138,13 +138,9 @@ const ClientesFornecedores = () => {
               <tr key={item.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
                 <td className="px-5 py-3.5 text-sm text-foreground">
                   <div className="flex items-center gap-2">
-                    {item.logoUrl ? (
-                      <img src={item.logoUrl} alt="" className="w-7 h-7 rounded-full object-cover border border-border" />
-                    ) : (
-                      <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground">
-                        {item.nome.charAt(0).toUpperCase()}
-                      </div>
-                    )}
+                    <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground">
+                      {item.nome.charAt(0).toUpperCase()}
+                    </div>
                     {item.nome}
                   </div>
                 </td>
