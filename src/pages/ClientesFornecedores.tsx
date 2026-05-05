@@ -299,6 +299,31 @@ const ClientesFornecedores = () => {
               </div>
             </div>
 
+            {/* Categoria Padrão - only for fornecedores */}
+            {editItem.tipo === "fornecedor" && (
+              <>
+                <Separator />
+                <div>
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    <Tag size={13} /> Categoria Padrão
+                  </h3>
+                  <div className="space-y-1.5">
+                    <Label>Categoria vinculada (auto-preenchimento em lançamentos)</Label>
+                    <Select value={editItem.categoriaPadrao || "none"} onValueChange={v => setEditItem({ ...editItem, categoriaPadrao: v === "none" ? "" : v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione uma categoria..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhuma</SelectItem>
+                        {initialCategorias.map(c => (
+                          <SelectItem key={c.id} value={c.nome}>{c.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-muted-foreground">Ao criar lançamentos para este fornecedor, a categoria será sugerida automaticamente</p>
+                  </div>
+                </div>
+              </>
+            )}
+
             <div className="flex justify-end gap-3 pt-3">
               <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
               <Button onClick={onSave}>Salvar</Button>
