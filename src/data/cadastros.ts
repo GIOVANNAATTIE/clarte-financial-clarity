@@ -33,11 +33,13 @@ export type CentroCusto = {
   descricao: string;
 };
 
+const emptyFields = { email: "", telefone: "", cep: "", endereco: "", bairro: "", cidade: "", estado: "", banco: "", agencia: "", conta: "", tipoConta: "", chavePix: "", logoUrl: "" };
+
 export const initialClientesFornecedores: ClienteFornecedor[] = [
-  { id: 1, nome: "Fornecedor ABC", tipo: "fornecedor", documento: "12.345.678/0001-90", contato: "contato@abc.com" },
-  { id: 2, nome: "Cliente XYZ", tipo: "cliente", documento: "98.765.432/0001-10", contato: "xyz@email.com" },
-  { id: 3, nome: "Consultoria Delta", tipo: "fornecedor", documento: "11.222.333/0001-44", contato: "delta@consul.com" },
-  { id: 4, nome: "Loja Premium", tipo: "cliente", documento: "55.666.777/0001-88", contato: "premium@loja.com" },
+  { id: 1, nome: "Fornecedor ABC", tipo: "fornecedor", documento: "12.345.678/0001-90", contato: "contato@abc.com", ...emptyFields },
+  { id: 2, nome: "Cliente XYZ", tipo: "cliente", documento: "98.765.432/0001-10", contato: "xyz@email.com", ...emptyFields },
+  { id: 3, nome: "Consultoria Delta", tipo: "fornecedor", documento: "11.222.333/0001-44", contato: "delta@consul.com", ...emptyFields },
+  { id: 4, nome: "Loja Premium", tipo: "cliente", documento: "55.666.777/0001-88", contato: "premium@loja.com", ...emptyFields },
 ];
 
 export const initialCategorias: Categoria[] = [
