@@ -462,7 +462,7 @@ const Transactions = () => {
               <div className="space-y-2">
                 <Label>Descrição (Cliente/Fornecedor)</Label>
                 <Select
-                  value={editTransaction.descricao}
+                  value={editTransaction.descricao || undefined}
                   onValueChange={(v) => setEditTransaction({ ...editTransaction, descricao: v })}
                 >
                   <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
@@ -477,7 +477,7 @@ const Transactions = () => {
                 <div className="space-y-2">
                   <Label>Categoria</Label>
                   <Select
-                    value={editTransaction.categoria}
+                    value={editTransaction.categoria || undefined}
                     onValueChange={(v) => setEditTransaction({ ...editTransaction, categoria: v })}
                   >
                     <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
@@ -491,7 +491,7 @@ const Transactions = () => {
                 <div className="space-y-2">
                   <Label>Centro de Custo</Label>
                   <Select
-                    value={editTransaction.centroCusto}
+                    value={editTransaction.centroCusto || undefined}
                     onValueChange={(v) => setEditTransaction({ ...editTransaction, centroCusto: v })}
                   >
                     <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
