@@ -116,6 +116,7 @@ const Transactions = () => {
   const [editTransaction, setEditTransaction] = useState<Transaction | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -355,6 +356,33 @@ const Transactions = () => {
     }
   };
 
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    // Check for conciliados
+    const conciliadosCount = transactions.filter(t => ids.includes(t.id) && t.status === "conciliado").length;
+    if (conciliadosCount > 0) {
+      toast({
+        title: "Exclusão bloqueada",
+        description: `${conciliadosCount} lançamento(s) selecionado(s) já está(ão) conciliado(s) e não pode(m) ser excluído(s). Remova-os da seleção.`,
+        variant: "destructive",
+      });
+      setBulkDeleteOpen(false);
+      return;
+    }
+
+    const { error } = await supabase.from("transactions").delete().in("id", ids);
+    if (error) {
+      toast({ title: "Erro ao excluir", variant: "destructive" });
+    } else {
+      toast({ title: `${ids.length} lançamento(s) excluído(s)` });
+      setSelectedIds(new Set());
+      await refreshTransactions();
+    }
+    setBulkDeleteOpen(false);
+  };
+
   const handleEdit = (t: Transaction) => {
     setEditTransaction({ ...t });
     setEditOpen(true);
@@ -383,6 +411,11 @@ const Transactions = () => {
   };
 
   const handleDelete = (id: string) => {
+    const tx = transactions.find(t => t.id === id);
+    if (tx?.status === "conciliado") {
+      toast({ title: "Exclusão bloqueada", description: "Lançamentos conciliados não podem ser excluídos.", variant: "destructive" });
+      return;
+    }
     setDeleteId(id);
     setDeleteOpen(true);
   };
@@ -519,6 +552,9 @@ const Transactions = () => {
           <span className="text-sm font-medium text-foreground">{selectedIds.size} selecionado(s)</span>
           <Button size="sm" className="gap-2" onClick={handleBulkConciliar}>
             <CheckSquare size={14} /> Marcar como Conciliado
+          </Button>
+          <Button size="sm" variant="destructive" className="gap-2" onClick={() => setBulkDeleteOpen(true)}>
+            <Trash2 size={14} /> Excluir Selecionados
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Limpar seleção</Button>
         </div>
@@ -921,6 +957,25 @@ const Transactions = () => {
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancelar</Button>
             <Button variant="destructive" onClick={confirmDelete}>Excluir</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>Excluir Selecionados</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Tem certeza que deseja excluir {selectedIds.size} lançamento(s)? Esta ação não pode ser desfeita.
+            {transactions.filter(t => selectedIds.has(t.id) && t.status === "conciliado").length > 0 && (
+              <span className="block mt-2 text-destructive font-medium">
+                ⚠️ Lançamentos conciliados na seleção serão ignorados e não serão excluídos.
+              </span>
+            )}
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleBulkDelete}>Excluir</Button>
           </div>
         </DialogContent>
       </Dialog>
