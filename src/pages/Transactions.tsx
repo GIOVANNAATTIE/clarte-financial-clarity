@@ -356,6 +356,33 @@ const Transactions = () => {
     }
   };
 
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    // Check for conciliados
+    const conciliadosCount = transactions.filter(t => ids.includes(t.id) && t.status === "conciliado").length;
+    if (conciliadosCount > 0) {
+      toast({
+        title: "Exclusão bloqueada",
+        description: `${conciliadosCount} lançamento(s) selecionado(s) já está(ão) conciliado(s) e não pode(m) ser excluído(s). Remova-os da seleção.`,
+        variant: "destructive",
+      });
+      setBulkDeleteOpen(false);
+      return;
+    }
+
+    const { error } = await supabase.from("transactions").delete().in("id", ids);
+    if (error) {
+      toast({ title: "Erro ao excluir", variant: "destructive" });
+    } else {
+      toast({ title: `${ids.length} lançamento(s) excluído(s)` });
+      setSelectedIds(new Set());
+      await refreshTransactions();
+    }
+    setBulkDeleteOpen(false);
+  };
+
   const handleEdit = (t: Transaction) => {
     setEditTransaction({ ...t });
     setEditOpen(true);
