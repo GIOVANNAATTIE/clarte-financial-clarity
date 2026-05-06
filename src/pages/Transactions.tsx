@@ -411,6 +411,11 @@ const Transactions = () => {
   };
 
   const handleDelete = (id: string) => {
+    const tx = transactions.find(t => t.id === id);
+    if (tx?.status === "conciliado") {
+      toast({ title: "Exclusão bloqueada", description: "Lançamentos conciliados não podem ser excluídos.", variant: "destructive" });
+      return;
+    }
     setDeleteId(id);
     setDeleteOpen(true);
   };
