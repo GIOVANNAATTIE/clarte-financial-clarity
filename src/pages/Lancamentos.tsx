@@ -28,6 +28,7 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useClient } from "@/contexts/ClientContext";
 
 // Prefixes to strip from description
 const DESCRIPTION_PREFIXES = [
