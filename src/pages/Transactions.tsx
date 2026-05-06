@@ -548,6 +548,9 @@ const Transactions = () => {
           <Button size="sm" className="gap-2" onClick={handleBulkConciliar}>
             <CheckSquare size={14} /> Marcar como Conciliado
           </Button>
+          <Button size="sm" variant="destructive" className="gap-2" onClick={() => setBulkDeleteOpen(true)}>
+            <Trash2 size={14} /> Excluir Selecionados
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Limpar seleção</Button>
         </div>
       )}
