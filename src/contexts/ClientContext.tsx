@@ -9,6 +9,19 @@ export type Client = {
   logoUrl: string;
 };
 
+export type CompanyPayload = {
+  name: string;
+  fantasy_name?: string;
+  cnpj?: string;
+  segment?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  email?: string;
+  phone?: string;
+};
+
 type ClientContextType = {
   clients: Client[];
   selectedClient: Client | null;
@@ -16,7 +29,7 @@ type ClientContextType = {
   clearClient: () => void;
   updateClient: (client: Client) => void;
   fetchClients: () => Promise<void>;
-  addClient: (name: string, cnpj: string, segment: string) => Promise<void>;
+  addClient: (payload: CompanyPayload) => Promise<void>;
   deleteClient: (id: string) => Promise<void>;
   loading: boolean;
 };
@@ -71,15 +84,22 @@ export const ClientProvider = ({ children }: { children: ReactNode }) => {
     fetchClients();
   }, [fetchClients]);
 
-  const addClient = async (name: string, cnpj: string, segment: string) => {
+  const addClient = async (payload: CompanyPayload) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     await supabase.from("companies").insert({
       user_id: user.id,
-      name,
-      cnpj: cnpj || null,
-      segment: segment || null,
-    });
+      name: payload.name,
+      fantasy_name: payload.fantasy_name || null,
+      cnpj: payload.cnpj || null,
+      segment: payload.segment || null,
+      address: payload.address || null,
+      city: payload.city || null,
+      state: payload.state || null,
+      zip_code: payload.zip_code || null,
+      email: payload.email || null,
+      phone: payload.phone || null,
+    } as any);
     await fetchClients();
   };
 
