@@ -7,18 +7,55 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Search, Building2, ChevronRight, Plus, Trash2, Loader2 } from "lucide-react";
+import { Search, Building2, ChevronRight, Plus, Trash2, Loader2, AlertTriangle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/logo.png";
+
+const formatCnpj = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 14);
+  return digits
+    .replace(/^(\d{2})(\d)/, "$1.$2")
+    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1/$2")
+    .replace(/(\d{4})(\d)/, "$1-$2");
+};
+
+const cleanCnpj = (value: string) => value.replace(/\D/g, "");
+
+type CompanyForm = {
+  cnpj: string;
+  name: string;
+  fantasy_name: string;
+  segment: string;
+  address: string;
+  city: string;
+  state: string;
+  zip_code: string;
+  email: string;
+  phone: string;
+};
+
+const emptyForm = (): CompanyForm => ({
+  cnpj: "", name: "", fantasy_name: "", segment: "",
+  address: "", city: "", state: "", zip_code: "",
+  email: "", phone: "",
+});
 
 const SelectClient = () => {
   const { clients, selectClient, fetchClients, addClient, deleteClient, loading } = useClient();
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const navigate = useNavigate();
   const [newOpen, setNewOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", cnpj: "", segment: "" });
+  const [form, setForm] = useState<CompanyForm>(emptyForm());
   const [saving, setSaving] = useState(false);
+  const [cnpjLoading, setCnpjLoading] = useState(false);
+  const [cnpjError, setCnpjError] = useState("");
+  const [situacao, setSituacao] = useState("");
+  const [duplicateWarning, setDuplicateWarning] = useState("");
 
   useEffect(() => { fetchClients(); }, [fetchClients]);
 
@@ -34,11 +71,114 @@ const SelectClient = () => {
     navigate("/dashboard");
   };
 
+  const handleCnpjChange = (value: string) => {
+    const masked = formatCnpj(value);
+    setForm(prev => ({ ...prev, cnpj: masked }));
+    setCnpjError("");
+    setDuplicateWarning("");
+    setSituacao("");
+  };
+
+  const lookupCnpj = async () => {
+    const digits = cleanCnpj(form.cnpj);
+    if (digits.length !== 14) {
+      setCnpjError("CNPJ deve ter 14 dígitos");
+      return;
+    }
+
+    // Check duplicate in DB
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: existing } = await supabase
+        .from("companies")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("cnpj", formatCnpj(digits))
+        .maybeSingle();
+      if (existing) {
+        setDuplicateWarning("Esta empresa já está cadastrada");
+        return;
+      }
+    }
+
+    setCnpjLoading(true);
+    setCnpjError("");
+    setDuplicateWarning("");
+    setSituacao("");
+
+    try {
+      const res = await fetch(`https://publica.cnpj.ws/cnpj/${digits}`);
+      if (res.status === 429) {
+        setCnpjError("Muitas consultas. Aguarde um momento e tente novamente.");
+        setCnpjLoading(false);
+        return;
+      }
+      if (!res.ok) {
+        setCnpjError("CNPJ não encontrado ou serviço indisponível");
+        setCnpjLoading(false);
+        return;
+      }
+      const data = await res.json();
+      const est = data.estabelecimento || {};
+
+      const razao = data.razao_social || "";
+      const fantasia = est.nome_fantasia || razao;
+      const atividade = est.atividade_principal?.descricao || "";
+      const logradouro = [est.tipo_logradouro, est.logradouro, est.numero, est.complemento]
+        .filter(Boolean).join(", ");
+      const bairro = est.bairro || "";
+      const fullAddress = [logradouro, bairro].filter(Boolean).join(" - ");
+      const cidade = est.cidade?.nome || "";
+      const estado = est.estado?.sigla || "";
+      const cep = est.cep || "";
+      const email = est.email || "";
+      const phone = est.ddd1 && est.telefone1 ? `(${est.ddd1}) ${est.telefone1}` : "";
+      const sit = est.situacao_cadastral || "";
+
+      setForm(prev => ({
+        ...prev,
+        name: razao,
+        fantasy_name: fantasia,
+        segment: atividade,
+        address: fullAddress,
+        city: cidade,
+        state: estado,
+        zip_code: cep,
+        email,
+        phone,
+      }));
+
+      if (sit && sit.toLowerCase() !== "ativa") {
+        setSituacao(sit);
+      }
+
+      toast({ title: "Dados preenchidos automaticamente" });
+    } catch {
+      setCnpjError("Erro ao consultar CNPJ. Tente novamente.");
+    }
+    setCnpjLoading(false);
+  };
+
   const handleAdd = async () => {
     if (!form.name.trim()) return;
+    if (duplicateWarning) return;
     setSaving(true);
-    await addClient(form.name, form.cnpj, form.segment);
-    setForm({ name: "", cnpj: "", segment: "" });
+    await addClient({
+      name: form.name,
+      fantasy_name: form.fantasy_name,
+      cnpj: form.cnpj || undefined,
+      segment: form.segment,
+      address: form.address,
+      city: form.city,
+      state: form.state,
+      zip_code: form.zip_code,
+      email: form.email,
+      phone: form.phone,
+    });
+    setForm(emptyForm());
+    setCnpjError("");
+    setDuplicateWarning("");
+    setSituacao("");
     setNewOpen(false);
     setSaving(false);
   };
@@ -50,6 +190,14 @@ const SelectClient = () => {
     setDeleteOpen(false);
     setDeleteId(null);
     setSaving(false);
+  };
+
+  const openNewModal = () => {
+    setForm(emptyForm());
+    setCnpjError("");
+    setDuplicateWarning("");
+    setSituacao("");
+    setNewOpen(true);
   };
 
   return (
@@ -72,7 +220,7 @@ const SelectClient = () => {
                 className="pl-9 h-11 bg-background/50"
               />
             </div>
-            <Button variant="hero" size="default" className="gap-2" onClick={() => setNewOpen(true)}>
+            <Button variant="hero" size="default" className="gap-2" onClick={openNewModal}>
               <Plus size={16} /> Nova Empresa
             </Button>
           </div>
@@ -129,24 +277,88 @@ const SelectClient = () => {
 
       {/* New Company Dialog */}
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Nova Empresa</DialogTitle></DialogHeader>
           <div className="space-y-4 pt-2">
+            {/* CNPJ with lookup */}
             <div className="space-y-2">
-              <Label>Nome da Empresa</Label>
-              <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Razão Social ou Nome Fantasia" />
+              <Label>CNPJ</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={form.cnpj}
+                  onChange={e => handleCnpjChange(e.target.value)}
+                  onBlur={() => { if (cleanCnpj(form.cnpj).length === 14) lookupCnpj(); }}
+                  placeholder="00.000.000/0001-00"
+                  className="flex-1"
+                />
+                <Button
+                  variant="outline"
+                  size="default"
+                  onClick={lookupCnpj}
+                  disabled={cnpjLoading || cleanCnpj(form.cnpj).length !== 14}
+                >
+                  {cnpjLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                  <span className="ml-1.5">Consultar</span>
+                </Button>
+              </div>
+              {cnpjError && <p className="text-xs text-destructive">{cnpjError}</p>}
+              {duplicateWarning && (
+                <div className="flex items-center gap-2 text-xs text-warning bg-warning/10 px-3 py-2 rounded-lg">
+                  <AlertTriangle size={14} /> {duplicateWarning}
+                </div>
+              )}
+              {situacao && (
+                <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 px-3 py-2 rounded-lg">
+                  <AlertTriangle size={14} /> Situação cadastral: {situacao}
+                </div>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label>CNPJ <span className="text-muted-foreground text-xs">(opcional)</span></Label>
-              <Input value={form.cnpj} onChange={e => setForm({ ...form, cnpj: e.target.value })} placeholder="00.000.000/0001-00" />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Razão Social</Label>
+                <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Razão Social" />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Nome Fantasia</Label>
+                <Input value={form.fantasy_name} onChange={e => setForm({ ...form, fantasy_name: e.target.value })} placeholder="Nome Fantasia" />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Segmento / Atividade Principal</Label>
+                <Input value={form.segment} onChange={e => setForm({ ...form, segment: e.target.value })} placeholder="Ex: Tecnologia, Saúde..." />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Segmento <span className="text-muted-foreground text-xs">(opcional)</span></Label>
-              <Input value={form.segment} onChange={e => setForm({ ...form, segment: e.target.value })} placeholder="Ex: Tecnologia, Saúde..." />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Endereço</Label>
+                <Input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="Logradouro, número, bairro" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Cidade</Label>
+                <Input value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Estado</Label>
+                <Input value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} maxLength={2} placeholder="UF" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>CEP</Label>
+                <Input value={form.zip_code} onChange={e => setForm({ ...form, zip_code: e.target.value })} placeholder="00000-000" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Telefone</Label>
+                <Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="(00) 00000-0000" />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>E-mail</Label>
+                <Input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="contato@empresa.com" />
+              </div>
             </div>
+
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" onClick={() => setNewOpen(false)}>Cancelar</Button>
-              <Button onClick={handleAdd} disabled={saving || !form.name.trim()}>
+              <Button onClick={handleAdd} disabled={saving || !form.name.trim() || !!duplicateWarning}>
                 {saving ? <Loader2 size={14} className="animate-spin mr-2" /> : null}
                 Criar Empresa
               </Button>
