@@ -272,7 +272,7 @@ const Lancamentos = () => {
     const type = form.tipo === "receber" ? "entrada" : "saida";
     const finalValue = type === "saida" ? -Math.abs(numericValue) : Math.abs(numericValue);
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       user_id: user.id,
       date: form.vencimento,
       description: form.descricao,
@@ -283,6 +283,7 @@ const Lancamentos = () => {
       type,
       status: form.status,
     };
+    if (companyId) payload.company_id = companyId;
 
     if (editItem) {
       const { error } = await supabase.from("transactions").update(payload).eq("id", editItem.id);
