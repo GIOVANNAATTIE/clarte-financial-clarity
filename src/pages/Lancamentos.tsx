@@ -215,10 +215,10 @@ const Lancamentos = () => {
   const refreshClassifications = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const [catRes, ccRes] = await Promise.all([
-      supabase.from("categories").select("id, name, type").eq("user_id", user.id),
-      supabase.from("cost_centers").select("id, name").eq("user_id", user.id),
-    ]);
+    let catQ = supabase.from("categories").select("id, name, type").eq("user_id", user.id);
+    let ccQ = supabase.from("cost_centers").select("id, name").eq("user_id", user.id);
+    if (companyId) { catQ = catQ.eq("company_id", companyId); ccQ = ccQ.eq("company_id", companyId); }
+    const [catRes, ccRes] = await Promise.all([catQ, ccQ]);
     if (catRes.data) setCategories(catRes.data);
     if (ccRes.data) setCostCenters(ccRes.data);
   };
