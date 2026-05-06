@@ -483,7 +483,7 @@ const Transactions = () => {
     const numericValue = parseFloat(newTransaction.value) || 0;
     const finalValue = newTransaction.type === "saida" ? -Math.abs(numericValue) : Math.abs(numericValue);
 
-    const { error } = await supabase.from("transactions").insert({
+    const insertPayload: Record<string, unknown> = {
       user_id: user.id,
       date: newTransaction.date,
       description: newTransaction.description,
@@ -493,7 +493,9 @@ const Transactions = () => {
       value: finalValue,
       type: newTransaction.type,
       status: newTransaction.status,
-    });
+    };
+    if (companyId) insertPayload.company_id = companyId;
+    const { error } = await supabase.from("transactions").insert(insertPayload as any);
     if (error) {
       toast({ title: "Erro ao criar lançamento", variant: "destructive" });
     } else {
