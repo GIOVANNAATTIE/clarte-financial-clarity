@@ -170,7 +170,7 @@ const Transactions = () => {
       }
     };
     fetchData();
-  }, []);
+  }, [companyId]);
 
   const refreshTransactions = async () => {
     const { data: { user } } = await supabase.auth.getUser();
