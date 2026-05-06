@@ -224,29 +224,46 @@ const Transactions = () => {
         let created = 0;
         for (const ofx of parsed) {
           let entityId: string | null = null;
+          // Check for existing entity (case-insensitive duplicate prevention)
           const matchedEntity = entities.find((ent) =>
+            ent.name.toLowerCase() === ofx.description.toLowerCase()
+          ) || entities.find((ent) =>
             ofx.description.toLowerCase().includes(ent.name.toLowerCase())
           );
 
           if (matchedEntity) {
             entityId = matchedEntity.id;
           } else {
+            // Check DB for duplicate before inserting
             const entityType = ofx.type === "entrada" ? "cliente" : "fornecedor";
-             const { data: newEntity, error: entityError } = await supabase.from("entities").insert({
-               user_id: userId,
-              name: ofx.description,
-              type: entityType,
-            }).select("id, name, type, default_category_id").single();
-             if (entityError) throw entityError;
-            if (newEntity) {
-              entityId = newEntity.id;
-              setEntities((prev) => [...prev, newEntity]);
+            const { data: existingEntity } = await supabase.from("entities")
+              .select("id, name, type, default_category_id")
+              .eq("user_id", userId)
+              .ilike("name", ofx.description)
+              .maybeSingle();
+
+            if (existingEntity) {
+              entityId = existingEntity.id;
+              setEntities((prev) => prev.some(e => e.id === existingEntity.id) ? prev : [...prev, existingEntity]);
+            } else {
+              const insertPayload: Record<string, unknown> = {
+                user_id: userId,
+                name: ofx.description,
+                type: entityType,
+              };
+              if (companyId) insertPayload.company_id = companyId;
+              const { data: newEntity, error: entityError } = await supabase.from("entities").insert(insertPayload as any).select("id, name, type, default_category_id").single();
+              if (entityError) throw entityError;
+              if (newEntity) {
+                entityId = newEntity.id;
+                setEntities((prev) => [...prev, newEntity]);
+              }
             }
           }
 
           const value = ofx.type === "saida" ? -ofx.value : ofx.value;
 
-           const { error: transactionError } = await supabase.from("transactions").insert({
+          const txPayload: Record<string, unknown> = {
             user_id: userId,
             date: ofx.date,
             description: ofx.description,
@@ -254,8 +271,10 @@ const Transactions = () => {
             type: ofx.type,
             entity_id: entityId,
             status: "pendente",
-          });
-           if (transactionError) throw transactionError;
+          };
+          if (companyId) txPayload.company_id = companyId;
+          const { error: transactionError } = await supabase.from("transactions").insert(txPayload as any);
+          if (transactionError) throw transactionError;
           created++;
         }
 
