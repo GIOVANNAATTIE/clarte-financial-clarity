@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,34 +9,63 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
-import { initialCategorias, type Categoria } from "@/data/cadastros";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+
+type Categoria = { id: string; name: string; type: string };
 
 const Categorias = () => {
-  const [items, setItems] = useState<Categoria[]>(initialCategorias);
+  const { toast } = useToast();
+  const [items, setItems] = useState<Categoria[]>([]);
   const [search, setSearch] = useState("");
   const [tipoFilter, setTipoFilter] = useState("todos");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editItem, setEditItem] = useState<Categoria | null>(null);
+  const [editItem, setEditItem] = useState<{ id?: string; name: string; type: string } | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const emptyItem: Categoria = { id: 0, nome: "", tipo: "despesa" };
-
-  const handleNew = () => { setEditItem({ ...emptyItem, id: Date.now() }); setDialogOpen(true); };
-  const handleEdit = (item: Categoria) => { setEditItem({ ...item }); setDialogOpen(true); };
-  const handleSave = () => {
-    if (!editItem || !editItem.nome.trim()) return;
-    setItems(prev => prev.some(i => i.id === editItem.id) ? prev.map(i => i.id === editItem.id ? editItem : i) : [...prev, editItem]);
-    setDialogOpen(false); setEditItem(null);
+  const fetchItems = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data } = await supabase.from("categories").select("id, name, type").eq("user_id", user.id).order("name");
+    if (data) setItems(data);
   };
-  const confirmDelete = () => {
-    if (deleteId !== null) setItems(prev => prev.filter(i => i.id !== deleteId));
+
+  useEffect(() => { fetchItems(); }, []);
+
+  const handleNew = () => { setEditItem({ name: "", type: "despesa" }); setDialogOpen(true); };
+  const handleEdit = (item: Categoria) => { setEditItem({ id: item.id, name: item.name, type: item.type }); setDialogOpen(true); };
+
+  const handleSave = async () => {
+    if (!editItem || !editItem.name.trim()) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    if (editItem.id) {
+      const { error } = await supabase.from("categories").update({ name: editItem.name, type: editItem.type }).eq("id", editItem.id);
+      if (error) { toast({ title: "Erro ao salvar", variant: "destructive" }); return; }
+      toast({ title: "Categoria atualizada" });
+    } else {
+      const { error } = await supabase.from("categories").insert({ user_id: user.id, name: editItem.name, type: editItem.type });
+      if (error) { toast({ title: "Erro ao criar", variant: "destructive" }); return; }
+      toast({ title: "Categoria criada" });
+    }
+    setDialogOpen(false); setEditItem(null);
+    fetchItems();
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteId) return;
+    const { error } = await supabase.from("categories").delete().eq("id", deleteId);
+    if (error) { toast({ title: "Erro ao excluir", variant: "destructive" }); return; }
+    toast({ title: "Categoria excluída" });
+    setItems(prev => prev.filter(i => i.id !== deleteId));
     setDeleteOpen(false); setDeleteId(null);
   };
 
   const filtered = items.filter(i => {
-    const matchSearch = i.nome.toLowerCase().includes(search.toLowerCase());
-    const matchTipo = tipoFilter === "todos" || i.tipo === tipoFilter;
+    const matchSearch = i.name.toLowerCase().includes(search.toLowerCase());
+    const matchTipo = tipoFilter === "todos" || i.type === tipoFilter;
     return matchSearch && matchTipo;
   });
 
@@ -79,10 +108,10 @@ const Categorias = () => {
             <tbody>
               {filtered.map(item => (
                 <tr key={item.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                  <td className="px-5 py-3.5 text-sm text-foreground">{item.nome}</td>
+                  <td className="px-5 py-3.5 text-sm text-foreground">{item.name}</td>
                   <td className="px-5 py-3.5 text-sm text-center">
-                    <span className={`text-[11px] font-semibold capitalize px-2.5 py-1 rounded-full ${item.tipo === "receita" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
-                      {item.tipo}
+                    <span className={`text-[11px] font-semibold capitalize px-2.5 py-1 rounded-full ${item.type === "receita" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
+                      {item.type}
                     </span>
                   </td>
                   <td className="px-5 py-3.5 text-center">
@@ -106,13 +135,13 @@ const Categorias = () => {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>{editItem && items.some(i => i.id === editItem.id) ? "Editar" : "Nova"} Categoria</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editItem?.id ? "Editar" : "Nova"} Categoria</DialogTitle></DialogHeader>
           {editItem && (
             <div className="space-y-4 pt-2">
-              <div className="space-y-2"><Label>Nome</Label><Input value={editItem.nome} onChange={e => setEditItem({ ...editItem, nome: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Nome</Label><Input value={editItem.name} onChange={e => setEditItem({ ...editItem, name: e.target.value })} /></div>
               <div className="space-y-2">
                 <Label>Tipo</Label>
-                <Select value={editItem.tipo} onValueChange={v => setEditItem({ ...editItem, tipo: v as "receita" | "despesa" })}>
+                <Select value={editItem.type} onValueChange={v => setEditItem({ ...editItem, type: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="receita">Receita</SelectItem>

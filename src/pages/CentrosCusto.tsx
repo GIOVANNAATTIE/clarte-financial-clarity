@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,31 +6,60 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
-import { initialCentrosCusto, type CentroCusto } from "@/data/cadastros";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+
+type CentroCusto = { id: string; name: string; description: string | null };
 
 const CentrosCusto = () => {
-  const [items, setItems] = useState<CentroCusto[]>(initialCentrosCusto);
+  const { toast } = useToast();
+  const [items, setItems] = useState<CentroCusto[]>([]);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editItem, setEditItem] = useState<CentroCusto | null>(null);
+  const [editItem, setEditItem] = useState<{ id?: string; name: string; description: string } | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const emptyItem: CentroCusto = { id: 0, nome: "", descricao: "" };
-
-  const handleNew = () => { setEditItem({ ...emptyItem, id: Date.now() }); setDialogOpen(true); };
-  const handleEdit = (item: CentroCusto) => { setEditItem({ ...item }); setDialogOpen(true); };
-  const handleSave = () => {
-    if (!editItem || !editItem.nome.trim()) return;
-    setItems(prev => prev.some(i => i.id === editItem.id) ? prev.map(i => i.id === editItem.id ? editItem : i) : [...prev, editItem]);
-    setDialogOpen(false); setEditItem(null);
+  const fetchItems = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data } = await supabase.from("cost_centers").select("id, name, description").eq("user_id", user.id).order("name");
+    if (data) setItems(data);
   };
-  const confirmDelete = () => {
-    if (deleteId !== null) setItems(prev => prev.filter(i => i.id !== deleteId));
+
+  useEffect(() => { fetchItems(); }, []);
+
+  const handleNew = () => { setEditItem({ name: "", description: "" }); setDialogOpen(true); };
+  const handleEdit = (item: CentroCusto) => { setEditItem({ id: item.id, name: item.name, description: item.description || "" }); setDialogOpen(true); };
+
+  const handleSave = async () => {
+    if (!editItem || !editItem.name.trim()) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    if (editItem.id) {
+      const { error } = await supabase.from("cost_centers").update({ name: editItem.name, description: editItem.description || null }).eq("id", editItem.id);
+      if (error) { toast({ title: "Erro ao salvar", variant: "destructive" }); return; }
+      toast({ title: "Centro de custo atualizado" });
+    } else {
+      const { error } = await supabase.from("cost_centers").insert({ user_id: user.id, name: editItem.name, description: editItem.description || null });
+      if (error) { toast({ title: "Erro ao criar", variant: "destructive" }); return; }
+      toast({ title: "Centro de custo criado" });
+    }
+    setDialogOpen(false); setEditItem(null);
+    fetchItems();
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteId) return;
+    const { error } = await supabase.from("cost_centers").delete().eq("id", deleteId);
+    if (error) { toast({ title: "Erro ao excluir", variant: "destructive" }); return; }
+    toast({ title: "Centro de custo excluído" });
+    setItems(prev => prev.filter(i => i.id !== deleteId));
     setDeleteOpen(false); setDeleteId(null);
   };
 
-  const filtered = items.filter(i => i.nome.toLowerCase().includes(search.toLowerCase()));
+  const filtered = items.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -61,8 +90,8 @@ const CentrosCusto = () => {
             <tbody>
               {filtered.map(item => (
                 <tr key={item.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                  <td className="px-5 py-3.5 text-sm text-foreground">{item.nome}</td>
-                  <td className="px-5 py-3.5 text-sm text-muted-foreground">{item.descricao}</td>
+                  <td className="px-5 py-3.5 text-sm text-foreground">{item.name}</td>
+                  <td className="px-5 py-3.5 text-sm text-muted-foreground">{item.description || "—"}</td>
                   <td className="px-5 py-3.5 text-center">
                     <div className="flex items-center justify-center gap-1">
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(item)}><Pencil size={14} /></Button>
@@ -84,11 +113,11 @@ const CentrosCusto = () => {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>{editItem && items.some(i => i.id === editItem.id) ? "Editar" : "Novo"} Centro de Custo</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editItem?.id ? "Editar" : "Novo"} Centro de Custo</DialogTitle></DialogHeader>
           {editItem && (
             <div className="space-y-4 pt-2">
-              <div className="space-y-2"><Label>Nome</Label><Input value={editItem.nome} onChange={e => setEditItem({ ...editItem, nome: e.target.value })} /></div>
-              <div className="space-y-2"><Label>Descrição</Label><Input value={editItem.descricao} onChange={e => setEditItem({ ...editItem, descricao: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Nome</Label><Input value={editItem.name} onChange={e => setEditItem({ ...editItem, name: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Descrição</Label><Input value={editItem.description} onChange={e => setEditItem({ ...editItem, description: e.target.value })} /></div>
               <div className="flex justify-end gap-3 pt-2">
                 <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
                 <Button onClick={handleSave}>Salvar</Button>
