@@ -88,6 +88,8 @@ type SortField = "entity_name" | "descricao" | "categoria" | "centro_custo" | "v
 type SortDir = "asc" | "desc";
 
 const Lancamentos = () => {
+  const { selectedClient } = useClient();
+  const companyId = selectedClient?.id;
   const [tab, setTab] = useState("receber");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
