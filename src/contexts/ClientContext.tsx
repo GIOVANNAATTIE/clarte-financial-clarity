@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 export type Client = {
   id: string;
@@ -8,20 +9,16 @@ export type Client = {
   logoUrl: string;
 };
 
-const mockClients: Client[] = [
-  { id: "1", name: "Grupo TDL", cnpj: "12.345.678/0001-90", segment: "Empresarial", logoUrl: "" },
-  { id: "2", name: "MKPlace", cnpj: "23.456.789/0001-01", segment: "Marketplace", logoUrl: "" },
-  { id: "3", name: "Tech Solutions Ltda", cnpj: "34.567.890/0001-12", segment: "Tecnologia", logoUrl: "" },
-  { id: "4", name: "Construtora Horizonte", cnpj: "45.678.901/0001-23", segment: "Construção Civil", logoUrl: "" },
-  { id: "5", name: "Clínica Bem Estar", cnpj: "56.789.012/0001-34", segment: "Saúde", logoUrl: "" },
-];
-
 type ClientContextType = {
   clients: Client[];
   selectedClient: Client | null;
   selectClient: (client: Client) => void;
   clearClient: () => void;
   updateClient: (client: Client) => void;
+  fetchClients: () => Promise<void>;
+  addClient: (name: string, cnpj: string, segment: string) => Promise<void>;
+  deleteClient: (id: string) => Promise<void>;
+  loading: boolean;
 };
 
 const ClientContext = createContext<ClientContextType | null>(null);
@@ -29,13 +26,16 @@ const ClientContext = createContext<ClientContextType | null>(null);
 export const useClient = () => {
   const ctx = useContext(ClientContext);
   if (!ctx) {
-    // Fallback for HMR or missing provider — return safe defaults
     return {
       clients: [],
       selectedClient: null,
       selectClient: () => {},
       clearClient: () => {},
       updateClient: () => {},
+      fetchClients: async () => {},
+      addClient: async () => {},
+      deleteClient: async () => {},
+      loading: false,
     } as ClientContextType;
   }
   return ctx;
@@ -43,7 +43,51 @@ export const useClient = () => {
 
 export const ClientProvider = ({ children }: { children: ReactNode }) => {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [clients, setClients] = useState<Client[]>(mockClients);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchClients = useCallback(async () => {
+    setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
+    const { data } = await supabase
+      .from("companies")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("name");
+    if (data) {
+      setClients(data.map(c => ({
+        id: c.id,
+        name: c.name,
+        cnpj: c.cnpj || "",
+        segment: c.segment || "",
+        logoUrl: c.logo_url || "",
+      })));
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchClients();
+  }, [fetchClients]);
+
+  const addClient = async (name: string, cnpj: string, segment: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from("companies").insert({
+      user_id: user.id,
+      name,
+      cnpj: cnpj || null,
+      segment: segment || null,
+    });
+    await fetchClients();
+  };
+
+  const deleteClient = async (id: string) => {
+    await supabase.from("companies").delete().eq("id", id);
+    if (selectedClient?.id === id) setSelectedClient(null);
+    await fetchClients();
+  };
 
   const updateClient = (updated: Client) => {
     setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
@@ -58,6 +102,10 @@ export const ClientProvider = ({ children }: { children: ReactNode }) => {
         selectClient: setSelectedClient,
         clearClient: () => setSelectedClient(null),
         updateClient,
+        fetchClients,
+        addClient,
+        deleteClient,
+        loading,
       }}
     >
       {children}
