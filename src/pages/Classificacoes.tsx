@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,59 +10,115 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
-import { initialCategorias, initialCentrosCusto, type Categoria, type CentroCusto } from "@/data/cadastros";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+
+type Categoria = { id: string; name: string; type: string };
+type CentroCusto = { id: string; name: string; description: string | null };
 
 const Classificacoes = () => {
+  const { toast } = useToast();
+
   // Categorias state
-  const [categorias, setCategorias] = useState<Categoria[]>(initialCategorias);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [catSearch, setCatSearch] = useState("");
   const [tipoFilter, setTipoFilter] = useState("todos");
   const [catDialogOpen, setCatDialogOpen] = useState(false);
-  const [editCat, setEditCat] = useState<Categoria | null>(null);
+  const [editCat, setEditCat] = useState<{ id?: string; name: string; type: string } | null>(null);
   const [catDeleteOpen, setCatDeleteOpen] = useState(false);
-  const [catDeleteId, setCatDeleteId] = useState<number | null>(null);
+  const [catDeleteId, setCatDeleteId] = useState<string | null>(null);
 
   // Centros de Custo state
-  const [centros, setCentros] = useState<CentroCusto[]>(initialCentrosCusto);
+  const [centros, setCentros] = useState<CentroCusto[]>([]);
   const [ccSearch, setCcSearch] = useState("");
   const [ccDialogOpen, setCcDialogOpen] = useState(false);
-  const [editCc, setEditCc] = useState<CentroCusto | null>(null);
+  const [editCc, setEditCc] = useState<{ id?: string; name: string; description: string } | null>(null);
   const [ccDeleteOpen, setCcDeleteOpen] = useState(false);
-  const [ccDeleteId, setCcDeleteId] = useState<number | null>(null);
+  const [ccDeleteId, setCcDeleteId] = useState<string | null>(null);
+
+  // Fetch from database
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const [catRes, ccRes] = await Promise.all([
+        supabase.from("categories").select("id, name, type").eq("user_id", user.id).order("name"),
+        supabase.from("cost_centers").select("id, name, description").eq("user_id", user.id).order("name"),
+      ]);
+      if (catRes.data) setCategorias(catRes.data);
+      if (ccRes.data) setCentros(ccRes.data);
+    };
+    fetchData();
+  }, []);
 
   // Categorias handlers
-  const handleNewCat = () => { setEditCat({ id: Date.now(), nome: "", tipo: "despesa" }); setCatDialogOpen(true); };
-  const handleEditCat = (item: Categoria) => { setEditCat({ ...item }); setCatDialogOpen(true); };
-  const handleSaveCat = () => {
-    if (!editCat || !editCat.nome.trim()) return;
-    setCategorias(prev => prev.some(i => i.id === editCat.id) ? prev.map(i => i.id === editCat.id ? editCat : i) : [...prev, editCat]);
+  const handleNewCat = () => { setEditCat({ name: "", type: "despesa" }); setCatDialogOpen(true); };
+  const handleEditCat = (item: Categoria) => { setEditCat({ id: item.id, name: item.name, type: item.type }); setCatDialogOpen(true); };
+  const handleSaveCat = async () => {
+    if (!editCat || !editCat.name.trim()) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    if (editCat.id) {
+      const { error } = await supabase.from("categories").update({ name: editCat.name, type: editCat.type }).eq("id", editCat.id);
+      if (error) { toast({ title: "Erro ao salvar", variant: "destructive" }); return; }
+      toast({ title: "Categoria atualizada" });
+    } else {
+      const { error } = await supabase.from("categories").insert({ user_id: user.id, name: editCat.name, type: editCat.type });
+      if (error) { toast({ title: "Erro ao criar", variant: "destructive" }); return; }
+      toast({ title: "Categoria criada" });
+    }
     setCatDialogOpen(false); setEditCat(null);
+    // Refresh
+    const { data } = await supabase.from("categories").select("id, name, type").eq("user_id", user.id).order("name");
+    if (data) setCategorias(data);
   };
-  const confirmDeleteCat = () => {
-    if (catDeleteId !== null) setCategorias(prev => prev.filter(i => i.id !== catDeleteId));
+  const confirmDeleteCat = async () => {
+    if (!catDeleteId) return;
+    const { error } = await supabase.from("categories").delete().eq("id", catDeleteId);
+    if (error) { toast({ title: "Erro ao excluir", variant: "destructive" }); return; }
+    toast({ title: "Categoria excluída" });
+    setCategorias(prev => prev.filter(i => i.id !== catDeleteId));
     setCatDeleteOpen(false); setCatDeleteId(null);
   };
 
   // Centros de Custo handlers
-  const handleNewCc = () => { setEditCc({ id: Date.now(), nome: "", descricao: "" }); setCcDialogOpen(true); };
-  const handleEditCc = (item: CentroCusto) => { setEditCc({ ...item }); setCcDialogOpen(true); };
-  const handleSaveCc = () => {
-    if (!editCc || !editCc.nome.trim()) return;
-    setCentros(prev => prev.some(i => i.id === editCc.id) ? prev.map(i => i.id === editCc.id ? editCc : i) : [...prev, editCc]);
+  const handleNewCc = () => { setEditCc({ name: "", description: "" }); setCcDialogOpen(true); };
+  const handleEditCc = (item: CentroCusto) => { setEditCc({ id: item.id, name: item.name, description: item.description || "" }); setCcDialogOpen(true); };
+  const handleSaveCc = async () => {
+    if (!editCc || !editCc.name.trim()) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    if (editCc.id) {
+      const { error } = await supabase.from("cost_centers").update({ name: editCc.name, description: editCc.description || null }).eq("id", editCc.id);
+      if (error) { toast({ title: "Erro ao salvar", variant: "destructive" }); return; }
+      toast({ title: "Centro de custo atualizado" });
+    } else {
+      const { error } = await supabase.from("cost_centers").insert({ user_id: user.id, name: editCc.name, description: editCc.description || null });
+      if (error) { toast({ title: "Erro ao criar", variant: "destructive" }); return; }
+      toast({ title: "Centro de custo criado" });
+    }
     setCcDialogOpen(false); setEditCc(null);
+    const { data } = await supabase.from("cost_centers").select("id, name, description").eq("user_id", user.id).order("name");
+    if (data) setCentros(data);
   };
-  const confirmDeleteCc = () => {
-    if (ccDeleteId !== null) setCentros(prev => prev.filter(i => i.id !== ccDeleteId));
+  const confirmDeleteCc = async () => {
+    if (!ccDeleteId) return;
+    const { error } = await supabase.from("cost_centers").delete().eq("id", ccDeleteId);
+    if (error) { toast({ title: "Erro ao excluir", variant: "destructive" }); return; }
+    toast({ title: "Centro de custo excluído" });
+    setCentros(prev => prev.filter(i => i.id !== ccDeleteId));
     setCcDeleteOpen(false); setCcDeleteId(null);
   };
 
   const filteredCat = categorias.filter(i => {
-    const matchSearch = i.nome.toLowerCase().includes(catSearch.toLowerCase());
-    const matchTipo = tipoFilter === "todos" || i.tipo === tipoFilter;
+    const matchSearch = i.name.toLowerCase().includes(catSearch.toLowerCase());
+    const matchTipo = tipoFilter === "todos" || i.type === tipoFilter;
     return matchSearch && matchTipo;
   });
 
-  const filteredCc = centros.filter(i => i.nome.toLowerCase().includes(ccSearch.toLowerCase()));
+  const filteredCc = centros.filter(i => i.name.toLowerCase().includes(ccSearch.toLowerCase()));
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -111,10 +167,10 @@ const Classificacoes = () => {
                 <tbody>
                   {filteredCat.map(item => (
                     <tr key={item.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                      <td className="px-5 py-3.5 text-sm text-foreground">{item.nome}</td>
+                      <td className="px-5 py-3.5 text-sm text-foreground">{item.name}</td>
                       <td className="px-5 py-3.5 text-sm text-center">
-                        <span className={`text-[11px] font-semibold capitalize px-2.5 py-1 rounded-full ${item.tipo === "receita" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
-                          {item.tipo}
+                        <span className={`text-[11px] font-semibold capitalize px-2.5 py-1 rounded-full ${item.type === "receita" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
+                          {item.type}
                         </span>
                       </td>
                       <td className="px-5 py-3.5 text-center">
@@ -164,8 +220,8 @@ const Classificacoes = () => {
                 <tbody>
                   {filteredCc.map(item => (
                     <tr key={item.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                      <td className="px-5 py-3.5 text-sm text-foreground">{item.nome}</td>
-                      <td className="px-5 py-3.5 text-sm text-muted-foreground">{item.descricao}</td>
+                      <td className="px-5 py-3.5 text-sm text-foreground">{item.name}</td>
+                      <td className="px-5 py-3.5 text-sm text-muted-foreground">{item.description || "—"}</td>
                       <td className="px-5 py-3.5 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditCc(item)}><Pencil size={14} /></Button>
@@ -190,13 +246,13 @@ const Classificacoes = () => {
       {/* Categoria Dialogs */}
       <Dialog open={catDialogOpen} onOpenChange={setCatDialogOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>{editCat && categorias.some(i => i.id === editCat.id) ? "Editar" : "Nova"} Categoria</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editCat?.id ? "Editar" : "Nova"} Categoria</DialogTitle></DialogHeader>
           {editCat && (
             <div className="space-y-4 pt-2">
-              <div className="space-y-2"><Label>Nome</Label><Input value={editCat.nome} onChange={e => setEditCat({ ...editCat, nome: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Nome</Label><Input value={editCat.name} onChange={e => setEditCat({ ...editCat, name: e.target.value })} /></div>
               <div className="space-y-2">
                 <Label>Tipo</Label>
-                <Select value={editCat.tipo} onValueChange={v => setEditCat({ ...editCat, tipo: v as "receita" | "despesa" })}>
+                <Select value={editCat.type} onValueChange={v => setEditCat({ ...editCat, type: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="receita">Receita</SelectItem>
@@ -226,11 +282,11 @@ const Classificacoes = () => {
       {/* Centro de Custo Dialogs */}
       <Dialog open={ccDialogOpen} onOpenChange={setCcDialogOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>{editCc && centros.some(i => i.id === editCc.id) ? "Editar" : "Novo"} Centro de Custo</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editCc?.id ? "Editar" : "Novo"} Centro de Custo</DialogTitle></DialogHeader>
           {editCc && (
             <div className="space-y-4 pt-2">
-              <div className="space-y-2"><Label>Nome</Label><Input value={editCc.nome} onChange={e => setEditCc({ ...editCc, nome: e.target.value })} /></div>
-              <div className="space-y-2"><Label>Descrição</Label><Input value={editCc.descricao} onChange={e => setEditCc({ ...editCc, descricao: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Nome</Label><Input value={editCc.name} onChange={e => setEditCc({ ...editCc, name: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Descrição</Label><Input value={editCc.description} onChange={e => setEditCc({ ...editCc, description: e.target.value })} /></div>
               <div className="flex justify-end gap-3 pt-2">
                 <Button variant="outline" onClick={() => setCcDialogOpen(false)}>Cancelar</Button>
                 <Button onClick={handleSaveCc}>Salvar</Button>
