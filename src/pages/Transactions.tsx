@@ -955,6 +955,25 @@ const Transactions = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>Excluir Selecionados</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Tem certeza que deseja excluir {selectedIds.size} lançamento(s)? Esta ação não pode ser desfeita.
+            {transactions.filter(t => selectedIds.has(t.id) && t.status === "conciliado").length > 0 && (
+              <span className="block mt-2 text-destructive font-medium">
+                ⚠️ Lançamentos conciliados na seleção serão ignorados e não serão excluídos.
+              </span>
+            )}
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleBulkDelete}>Excluir</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
