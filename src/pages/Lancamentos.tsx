@@ -207,6 +207,17 @@ const Lancamentos = () => {
   const totalVencido = filtered.filter(l => l.status === "vencido").reduce((s, l) => s + l.valor, 0);
   const totalPago = filtered.filter(l => l.status === "pago" || l.status === "conciliado").reduce((s, l) => s + l.valor, 0);
 
+  const refreshClassifications = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const [catRes, ccRes] = await Promise.all([
+      supabase.from("categories").select("id, name, type").eq("user_id", user.id),
+      supabase.from("cost_centers").select("id, name").eq("user_id", user.id),
+    ]);
+    if (catRes.data) setCategories(catRes.data);
+    if (ccRes.data) setCostCenters(ccRes.data);
+  };
+
   const openNew = () => {
     setEditItem(null);
     setForm({
@@ -219,6 +230,7 @@ const Lancamentos = () => {
       tipo: tab,
       status: "pendente",
     });
+    refreshClassifications();
     setDialogOpen(true);
   };
 
@@ -234,6 +246,7 @@ const Lancamentos = () => {
       tipo: l.tipo,
       status: l.status,
     });
+    refreshClassifications();
     setDialogOpen(true);
   };
 
