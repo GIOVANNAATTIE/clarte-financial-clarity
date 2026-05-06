@@ -515,7 +515,7 @@ const Transactions = () => {
           <h1 className="font-heading text-2xl font-bold text-foreground">Movimentação</h1>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={() => setNewOpen(true)}>
+          <Button variant="outline" className="gap-2" onClick={() => { refreshClassifications(); setNewOpen(true); }}>
             <Plus size={16} /> Novo Lançamento
           </Button>
           <Dialog open={importOpen} onOpenChange={setImportOpen}>
