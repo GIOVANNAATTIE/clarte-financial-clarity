@@ -124,12 +124,12 @@ const Lancamentos = () => {
     const fetchData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const [txRes, entRes, catRes, ccRes] = await Promise.all([
-        supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }),
-        supabase.from("entities").select("id, name, type, default_category_id").eq("user_id", user.id),
-        supabase.from("categories").select("id, name, type").eq("user_id", user.id),
-        supabase.from("cost_centers").select("id, name").eq("user_id", user.id),
-      ]);
+      let txQ = supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false });
+      let entQ = supabase.from("entities").select("id, name, type, default_category_id").eq("user_id", user.id);
+      let catQ = supabase.from("categories").select("id, name, type").eq("user_id", user.id);
+      let ccQ = supabase.from("cost_centers").select("id, name").eq("user_id", user.id);
+      if (companyId) { txQ = txQ.eq("company_id", companyId); entQ = entQ.eq("company_id", companyId); catQ = catQ.eq("company_id", companyId); ccQ = ccQ.eq("company_id", companyId); }
+      const [txRes, entRes, catRes, ccRes] = await Promise.all([txQ, entQ, catQ, ccQ]);
       if (entRes.data) setEntities(entRes.data);
       if (catRes.data) setCategories(catRes.data);
       if (ccRes.data) setCostCenters(ccRes.data);
