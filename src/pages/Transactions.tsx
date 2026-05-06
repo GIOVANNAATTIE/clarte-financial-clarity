@@ -100,6 +100,8 @@ type SortField = "date" | "description" | "category" | "costCenter" | "value" | 
 type SortDir = "asc" | "desc";
 
 const Transactions = () => {
+  const { selectedClient } = useClient();
+  const companyId = selectedClient?.id;
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("todas");
   const [statusFilter, setStatusFilter] = useState("todos");
