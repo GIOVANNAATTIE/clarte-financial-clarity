@@ -156,7 +156,9 @@ const Lancamentos = () => {
   const refresh = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data } = await supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false });
+    let query = supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false });
+    if (companyId) query = query.eq("company_id", companyId);
+    const { data } = await query;
     if (data) {
       setLancamentos(data.map((t) => ({
         id: t.id,
