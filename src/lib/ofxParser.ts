@@ -80,6 +80,11 @@ export function parseOFX(content: string): OFXTransaction[] {
     const rawDescription = (memoMatch?.[1] || nameMatch?.[1] || "Sem descrição").trim();
     const description = cleanOFXDescription(rawDescription);
 
+    // Skip balance entries — not real transactions
+    if (/\bsaldo\b/i.test(description) || /\bsaldo\b/i.test(rawDescription)) {
+      continue;
+    }
+
     if (rawDate && rawAmt) {
       const year = rawDate.substring(0, 4);
       const month = rawDate.substring(4, 6);
