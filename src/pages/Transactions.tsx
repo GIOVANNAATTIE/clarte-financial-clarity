@@ -37,6 +37,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { useClient } from "@/contexts/ClientContext";
 
 type Transaction = {
   id: string;
@@ -99,6 +100,8 @@ type SortField = "date" | "description" | "category" | "costCenter" | "value" | 
 type SortDir = "asc" | "desc";
 
 const Transactions = () => {
+  const { selectedClient } = useClient();
+  const companyId = selectedClient?.id;
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("todas");
   const [statusFilter, setStatusFilter] = useState("todos");
@@ -139,12 +142,18 @@ const Transactions = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const [txRes, entRes, catRes, ccRes] = await Promise.all([
-        supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }),
-        supabase.from("entities").select("id, name, type, default_category_id").eq("user_id", user.id),
-        supabase.from("categories").select("id, name, type").eq("user_id", user.id),
-        supabase.from("cost_centers").select("id, name").eq("user_id", user.id),
-      ]);
+      let txQ = supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false });
+      let entQ = supabase.from("entities").select("id, name, type, default_category_id").eq("user_id", user.id);
+      let catQ = supabase.from("categories").select("id, name, type").eq("user_id", user.id);
+      let ccQ = supabase.from("cost_centers").select("id, name").eq("user_id", user.id);
+      if (companyId) {
+        txQ = txQ.eq("company_id", companyId);
+        entQ = entQ.eq("company_id", companyId);
+        catQ = catQ.eq("company_id", companyId);
+        ccQ = ccQ.eq("company_id", companyId);
+      }
+
+      const [txRes, entRes, catRes, ccRes] = await Promise.all([txQ, entQ, catQ, ccQ]);
 
       if (entRes.data) setEntities(entRes.data);
       if (catRes.data) setCategories(catRes.data);
@@ -161,12 +170,14 @@ const Transactions = () => {
       }
     };
     fetchData();
-  }, []);
+  }, [companyId]);
 
   const refreshTransactions = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data } = await supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false });
+    let query = supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false });
+    if (companyId) query = query.eq("company_id", companyId);
+    const { data } = await query;
     if (data) {
       const mapped = data.map((t) => ({
         ...t,
@@ -213,29 +224,46 @@ const Transactions = () => {
         let created = 0;
         for (const ofx of parsed) {
           let entityId: string | null = null;
+          // Check for existing entity (case-insensitive duplicate prevention)
           const matchedEntity = entities.find((ent) =>
+            ent.name.toLowerCase() === ofx.description.toLowerCase()
+          ) || entities.find((ent) =>
             ofx.description.toLowerCase().includes(ent.name.toLowerCase())
           );
 
           if (matchedEntity) {
             entityId = matchedEntity.id;
           } else {
+            // Check DB for duplicate before inserting
             const entityType = ofx.type === "entrada" ? "cliente" : "fornecedor";
-             const { data: newEntity, error: entityError } = await supabase.from("entities").insert({
-               user_id: userId,
-              name: ofx.description,
-              type: entityType,
-            }).select("id, name, type, default_category_id").single();
-             if (entityError) throw entityError;
-            if (newEntity) {
-              entityId = newEntity.id;
-              setEntities((prev) => [...prev, newEntity]);
+            const { data: existingEntity } = await supabase.from("entities")
+              .select("id, name, type, default_category_id")
+              .eq("user_id", userId)
+              .ilike("name", ofx.description)
+              .maybeSingle();
+
+            if (existingEntity) {
+              entityId = existingEntity.id;
+              setEntities((prev) => prev.some(e => e.id === existingEntity.id) ? prev : [...prev, existingEntity]);
+            } else {
+              const insertPayload: Record<string, unknown> = {
+                user_id: userId,
+                name: ofx.description,
+                type: entityType,
+              };
+              if (companyId) insertPayload.company_id = companyId;
+              const { data: newEntity, error: entityError } = await supabase.from("entities").insert(insertPayload as any).select("id, name, type, default_category_id").single();
+              if (entityError) throw entityError;
+              if (newEntity) {
+                entityId = newEntity.id;
+                setEntities((prev) => [...prev, newEntity]);
+              }
             }
           }
 
           const value = ofx.type === "saida" ? -ofx.value : ofx.value;
 
-           const { error: transactionError } = await supabase.from("transactions").insert({
+          const txPayload: Record<string, unknown> = {
             user_id: userId,
             date: ofx.date,
             description: ofx.description,
@@ -243,8 +271,10 @@ const Transactions = () => {
             type: ofx.type,
             entity_id: entityId,
             status: "pendente",
-          });
-           if (transactionError) throw transactionError;
+          };
+          if (companyId) txPayload.company_id = companyId;
+          const { error: transactionError } = await supabase.from("transactions").insert(txPayload as any);
+          if (transactionError) throw transactionError;
           created++;
         }
 
@@ -386,10 +416,10 @@ const Transactions = () => {
   const refreshClassifications = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const [catRes, ccRes] = await Promise.all([
-      supabase.from("categories").select("id, name, type").eq("user_id", user.id),
-      supabase.from("cost_centers").select("id, name").eq("user_id", user.id),
-    ]);
+    let catQ = supabase.from("categories").select("id, name, type").eq("user_id", user.id);
+    let ccQ = supabase.from("cost_centers").select("id, name").eq("user_id", user.id);
+    if (companyId) { catQ = catQ.eq("company_id", companyId); ccQ = ccQ.eq("company_id", companyId); }
+    const [catRes, ccRes] = await Promise.all([catQ, ccQ]);
     if (catRes.data) setCategories(catRes.data);
     if (ccRes.data) setCostCenters(ccRes.data);
   };
@@ -453,7 +483,7 @@ const Transactions = () => {
     const numericValue = parseFloat(newTransaction.value) || 0;
     const finalValue = newTransaction.type === "saida" ? -Math.abs(numericValue) : Math.abs(numericValue);
 
-    const { error } = await supabase.from("transactions").insert({
+    const insertPayload: Record<string, unknown> = {
       user_id: user.id,
       date: newTransaction.date,
       description: newTransaction.description,
@@ -463,7 +493,9 @@ const Transactions = () => {
       value: finalValue,
       type: newTransaction.type,
       status: newTransaction.status,
-    });
+    };
+    if (companyId) insertPayload.company_id = companyId;
+    const { error } = await supabase.from("transactions").insert(insertPayload as any);
     if (error) {
       toast({ title: "Erro ao criar lançamento", variant: "destructive" });
     } else {

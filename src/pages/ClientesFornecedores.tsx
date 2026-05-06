@@ -13,6 +13,8 @@ import { Plus, Pencil, Trash2, Search, Loader2, MapPin, Building2, Key, Tag } fr
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useClient } from "@/contexts/ClientContext";
 
 type Entity = {
   id: string;
@@ -29,7 +31,6 @@ type Entity = {
 
 type CategoryOption = { id: string; name: string };
 
-// We store bank details as JSON in the bank_info column
 type BankDetails = {
   banco?: string;
   agencia?: string;
@@ -49,6 +50,8 @@ const parseBankInfo = (bankInfo: string | null): BankDetails => {
 
 const ClientesFornecedores = () => {
   const { toast } = useToast();
+  const { selectedClient } = useClient();
+  const companyId = selectedClient?.id;
 
   const [entities, setEntities] = useState<Entity[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
@@ -82,18 +85,24 @@ const ClientesFornecedores = () => {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // Bulk selection
+  const [selectedClientes, setSelectedClientes] = useState<Set<string>>(new Set());
+  const [selectedFornecedores, setSelectedFornecedores] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteType, setBulkDeleteType] = useState<"cliente" | "fornecedor">("cliente");
+
   const fetchData = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const [entRes, catRes] = await Promise.all([
-      supabase.from("entities").select("*").eq("user_id", user.id).order("name"),
-      supabase.from("categories").select("id, name").eq("user_id", user.id).order("name"),
-    ]);
+    let entQ = supabase.from("entities").select("*").eq("user_id", user.id).order("name");
+    let catQ = supabase.from("categories").select("id, name").eq("user_id", user.id).order("name");
+    if (companyId) { entQ = entQ.eq("company_id", companyId); catQ = catQ.eq("company_id", companyId); }
+    const [entRes, catRes] = await Promise.all([entQ, catQ]);
     if (entRes.data) setEntities(entRes.data);
     if (catRes.data) setCategories(catRes.data);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [companyId]);
 
   const clientes = entities.filter(e => e.type === "cliente");
   const fornecedores = entities.filter(e => e.type === "fornecedor");
@@ -103,23 +112,12 @@ const ClientesFornecedores = () => {
   const entityToForm = (e: Entity) => {
     const bank = parseBankInfo(e.bank_info);
     return {
-      id: e.id,
-      name: e.name,
-      document: e.document || "",
-      email: e.email || "",
-      phone: e.phone || "",
-      cep: e.zip_code || "",
-      endereco: e.address || "",
-      bairro: bank.bairro || "",
-      cidade: bank.cidade || "",
-      estado: bank.estado || "",
-      banco: bank.banco || "",
-      agencia: bank.agencia || "",
-      conta: bank.conta || "",
-      tipoConta: bank.tipoConta || "",
-      chavePix: bank.chavePix || "",
-      contato: bank.contato || "",
-      default_category_id: e.default_category_id || "",
+      id: e.id, name: e.name, document: e.document || "", email: e.email || "",
+      phone: e.phone || "", cep: e.zip_code || "", endereco: e.address || "",
+      bairro: bank.bairro || "", cidade: bank.cidade || "", estado: bank.estado || "",
+      banco: bank.banco || "", agencia: bank.agencia || "", conta: bank.conta || "",
+      tipoConta: bank.tipoConta || "", chavePix: bank.chavePix || "",
+      contato: bank.contato || "", default_category_id: e.default_category_id || "",
     };
   };
 
@@ -154,7 +152,7 @@ const ClientesFornecedores = () => {
       contato: editForm.contato,
     });
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       name: editForm.name,
       type: dialogType,
       document: editForm.document || null,
@@ -167,11 +165,21 @@ const ClientesFornecedores = () => {
     };
 
     if (editForm.id) {
-      const { error } = await supabase.from("entities").update(payload).eq("id", editForm.id);
+      const { error } = await supabase.from("entities").update(payload as any).eq("id", editForm.id);
       if (error) { toast({ title: "Erro ao salvar", variant: "destructive" }); return; }
       toast({ title: "Registro atualizado" });
     } else {
-      const { error } = await supabase.from("entities").insert({ ...payload, user_id: user.id });
+      // Duplicate check (case-insensitive)
+      let dupQ = supabase.from("entities").select("id").eq("user_id", user.id).ilike("name", editForm.name.trim());
+      if (companyId) dupQ = dupQ.eq("company_id", companyId);
+      const { data: existing } = await dupQ;
+      if (existing && existing.length > 0) {
+        toast({ title: "Registro duplicado", description: `Já existe um ${dialogType} com esse nome.`, variant: "destructive" });
+        return;
+      }
+      payload.user_id = user.id;
+      if (companyId) payload.company_id = companyId;
+      const { error } = await supabase.from("entities").insert(payload as any);
       if (error) { toast({ title: "Erro ao criar", variant: "destructive" }); return; }
       toast({ title: "Registro criado" });
     }
@@ -190,6 +198,38 @@ const ClientesFornecedores = () => {
     setDeleteId(null);
   };
 
+  const handleBulkDelete = async () => {
+    const ids = Array.from(bulkDeleteType === "cliente" ? selectedClientes : selectedFornecedores);
+    if (ids.length === 0) return;
+    const { error } = await supabase.from("entities").delete().in("id", ids);
+    if (error) {
+      toast({ title: "Erro ao excluir", variant: "destructive" });
+    } else {
+      toast({ title: `${ids.length} registro(s) excluído(s)` });
+      setEntities(prev => prev.filter(i => !ids.includes(i.id)));
+      if (bulkDeleteType === "cliente") setSelectedClientes(new Set());
+      else setSelectedFornecedores(new Set());
+    }
+    setBulkDeleteOpen(false);
+  };
+
+  const toggleSelect = (id: string, type: "cliente" | "fornecedor") => {
+    const setter = type === "cliente" ? setSelectedClientes : setSelectedFornecedores;
+    setter(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = (items: Entity[], type: "cliente" | "fornecedor") => {
+    const selected = type === "cliente" ? selectedClientes : selectedFornecedores;
+    const setter = type === "cliente" ? setSelectedClientes : setSelectedFornecedores;
+    const allSelected = items.length > 0 && items.every(i => selected.has(i.id));
+    if (allSelected) setter(new Set());
+    else setter(new Set(items.map(i => i.id)));
+  };
+
   const fetchCep = async (cep: string) => {
     if (!editForm) return;
     const cleanCep = cep.replace(/\D/g, "");
@@ -202,12 +242,9 @@ const ClientesFornecedores = () => {
         toast({ title: "CEP não encontrado", variant: "destructive" });
       } else {
         setEditForm({
-          ...editForm,
-          cep,
-          endereco: data.logradouro || "",
-          bairro: data.bairro || "",
-          cidade: data.localidade || "",
-          estado: data.uf || "",
+          ...editForm, cep,
+          endereco: data.logradouro || "", bairro: data.bairro || "",
+          cidade: data.localidade || "", estado: data.uf || "",
         });
         toast({ title: "Endereço preenchido automaticamente" });
       }
@@ -219,60 +256,84 @@ const ClientesFornecedores = () => {
 
   const renderTable = (
     items: Entity[],
-    label: string
-  ) => (
-    <div className="bg-card rounded-xl border border-border shadow-[var(--shadow-card)] overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border bg-muted/30">
-              <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center">Nome</th>
-              <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center hidden md:table-cell">Documento</th>
-              <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center hidden md:table-cell">E-mail</th>
-              <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center hidden lg:table-cell">Telefone</th>
-              <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center hidden lg:table-cell">Cidade/UF</th>
-              <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center w-24">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map(item => {
-              const bank = parseBankInfo(item.bank_info);
-              return (
-                <tr key={item.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                  <td className="px-5 py-3.5 text-sm text-foreground">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground">
-                        {item.name.charAt(0).toUpperCase()}
-                      </div>
-                      {item.name}
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5 text-sm text-muted-foreground hidden md:table-cell text-center">{item.document || "—"}</td>
-                  <td className="px-5 py-3.5 text-sm text-muted-foreground hidden md:table-cell text-center">{item.email || "—"}</td>
-                  <td className="px-5 py-3.5 text-sm text-muted-foreground hidden lg:table-cell text-center">{item.phone || "—"}</td>
-                  <td className="px-5 py-3.5 text-sm text-muted-foreground hidden lg:table-cell text-center">
-                    {bank.cidade && bank.estado ? `${bank.cidade}/${bank.estado}` : "—"}
-                  </td>
-                  <td className="px-5 py-3.5 text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(item)}><Pencil size={14} /></Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => { setDeleteId(item.id); setDeleteOpen(true); }}><Trash2 size={14} /></Button>
-                    </div>
-                  </td>
+    label: string,
+    type: "cliente" | "fornecedor"
+  ) => {
+    const selected = type === "cliente" ? selectedClientes : selectedFornecedores;
+    const allSelected = items.length > 0 && items.every(i => selected.has(i.id));
+    const someSelected = selected.size > 0;
+
+    return (
+      <>
+        {someSelected && (
+          <div className="flex items-center gap-4 bg-primary/10 border border-primary/20 rounded-xl px-5 py-3 mb-4">
+            <span className="text-sm font-medium text-foreground">{selected.size} selecionado(s)</span>
+            <Button size="sm" variant="destructive" className="gap-2" onClick={() => { setBulkDeleteType(type); setBulkDeleteOpen(true); }}>
+              <Trash2 size={14} /> Excluir Selecionados
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => (type === "cliente" ? setSelectedClientes : setSelectedFornecedores)(new Set())}>Limpar seleção</Button>
+          </div>
+        )}
+        <div className="bg-card rounded-xl border border-border shadow-[var(--shadow-card)] overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border bg-muted/30">
+                  <th className="px-3 py-3 w-10">
+                    <Checkbox checked={allSelected} onCheckedChange={() => toggleSelectAll(items, type)} />
+                  </th>
+                  <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center">Nome</th>
+                  <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center hidden md:table-cell">Documento</th>
+                  <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center hidden md:table-cell">E-mail</th>
+                  <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center hidden lg:table-cell">Telefone</th>
+                  <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center hidden lg:table-cell">Cidade/UF</th>
+                  <th className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 text-center w-24">Ações</th>
                 </tr>
-              );
-            })}
-            {items.length === 0 && (
-              <tr><td colSpan={6} className="px-5 py-8 text-center text-sm text-muted-foreground">Nenhum registro encontrado</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      <div className="px-5 py-3 border-t border-border bg-muted/20 text-xs text-muted-foreground">
-        {items.length} {label} encontrados
-      </div>
-    </div>
-  );
+              </thead>
+              <tbody>
+                {items.map(item => {
+                  const bank = parseBankInfo(item.bank_info);
+                  return (
+                    <tr key={item.id} className={`border-b border-border/50 hover:bg-muted/20 transition-colors ${selected.has(item.id) ? "bg-primary/5" : ""}`}>
+                      <td className="px-3 py-3.5">
+                        <Checkbox checked={selected.has(item.id)} onCheckedChange={() => toggleSelect(item.id, type)} />
+                      </td>
+                      <td className="px-5 py-3.5 text-sm text-foreground">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground">
+                            {item.name.charAt(0).toUpperCase()}
+                          </div>
+                          {item.name}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 text-sm text-muted-foreground hidden md:table-cell text-center">{item.document || "—"}</td>
+                      <td className="px-5 py-3.5 text-sm text-muted-foreground hidden md:table-cell text-center">{item.email || "—"}</td>
+                      <td className="px-5 py-3.5 text-sm text-muted-foreground hidden lg:table-cell text-center">{item.phone || "—"}</td>
+                      <td className="px-5 py-3.5 text-sm text-muted-foreground hidden lg:table-cell text-center">
+                        {bank.cidade && bank.estado ? `${bank.cidade}/${bank.estado}` : "—"}
+                      </td>
+                      <td className="px-5 py-3.5 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(item)}><Pencil size={14} /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => { setDeleteId(item.id); setDeleteOpen(true); }}><Trash2 size={14} /></Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {items.length === 0 && (
+                  <tr><td colSpan={7} className="px-5 py-8 text-center text-sm text-muted-foreground">Nenhum registro encontrado</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-5 py-3 border-t border-border bg-muted/20 text-xs text-muted-foreground">
+            {items.length} {label} encontrados
+          </div>
+        </div>
+      </>
+    );
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -296,7 +357,7 @@ const ClientesFornecedores = () => {
               <Plus size={18} /> Novo Cliente
             </Button>
           </div>
-          {renderTable(filteredClientes, "clientes")}
+          {renderTable(filteredClientes, "clientes", "cliente")}
         </TabsContent>
 
         <TabsContent value="fornecedores" className="space-y-4">
@@ -311,7 +372,7 @@ const ClientesFornecedores = () => {
               <Plus size={18} /> Novo Fornecedor
             </Button>
           </div>
-          {renderTable(filteredFornecedores, "fornecedores")}
+          {renderTable(filteredFornecedores, "fornecedores", "fornecedor")}
         </TabsContent>
       </Tabs>
 
@@ -473,6 +534,20 @@ const ClientesFornecedores = () => {
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancelar</Button>
             <Button variant="destructive" onClick={confirmDelete}>Excluir</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Dialog */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>Excluir Selecionados</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Tem certeza que deseja excluir {(bulkDeleteType === "cliente" ? selectedClientes : selectedFornecedores).size} registro(s)? Esta ação não pode ser desfeita.
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleBulkDelete}>Excluir</Button>
           </div>
         </DialogContent>
       </Dialog>

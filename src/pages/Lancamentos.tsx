@@ -28,6 +28,7 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useClient } from "@/contexts/ClientContext";
 
 // Prefixes to strip from description
 const DESCRIPTION_PREFIXES = [
@@ -87,6 +88,8 @@ type SortField = "entity_name" | "descricao" | "categoria" | "centro_custo" | "v
 type SortDir = "asc" | "desc";
 
 const Lancamentos = () => {
+  const { selectedClient } = useClient();
+  const companyId = selectedClient?.id;
   const [tab, setTab] = useState("receber");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
@@ -121,12 +124,12 @@ const Lancamentos = () => {
     const fetchData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const [txRes, entRes, catRes, ccRes] = await Promise.all([
-        supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }),
-        supabase.from("entities").select("id, name, type, default_category_id").eq("user_id", user.id),
-        supabase.from("categories").select("id, name, type").eq("user_id", user.id),
-        supabase.from("cost_centers").select("id, name").eq("user_id", user.id),
-      ]);
+      let txQ = supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false });
+      let entQ = supabase.from("entities").select("id, name, type, default_category_id").eq("user_id", user.id);
+      let catQ = supabase.from("categories").select("id, name, type").eq("user_id", user.id);
+      let ccQ = supabase.from("cost_centers").select("id, name").eq("user_id", user.id);
+      if (companyId) { txQ = txQ.eq("company_id", companyId); entQ = entQ.eq("company_id", companyId); catQ = catQ.eq("company_id", companyId); ccQ = ccQ.eq("company_id", companyId); }
+      const [txRes, entRes, catRes, ccRes] = await Promise.all([txQ, entQ, catQ, ccQ]);
       if (entRes.data) setEntities(entRes.data);
       if (catRes.data) setCategories(catRes.data);
       if (ccRes.data) setCostCenters(ccRes.data);
@@ -148,12 +151,14 @@ const Lancamentos = () => {
       }
     };
     fetchData();
-  }, []);
+  }, [companyId]);
 
   const refresh = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data } = await supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false });
+    let query = supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false });
+    if (companyId) query = query.eq("company_id", companyId);
+    const { data } = await query;
     if (data) {
       setLancamentos(data.map((t) => ({
         id: t.id,
@@ -210,10 +215,10 @@ const Lancamentos = () => {
   const refreshClassifications = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const [catRes, ccRes] = await Promise.all([
-      supabase.from("categories").select("id, name, type").eq("user_id", user.id),
-      supabase.from("cost_centers").select("id, name").eq("user_id", user.id),
-    ]);
+    let catQ = supabase.from("categories").select("id, name, type").eq("user_id", user.id);
+    let ccQ = supabase.from("cost_centers").select("id, name").eq("user_id", user.id);
+    if (companyId) { catQ = catQ.eq("company_id", companyId); ccQ = ccQ.eq("company_id", companyId); }
+    const [catRes, ccRes] = await Promise.all([catQ, ccQ]);
     if (catRes.data) setCategories(catRes.data);
     if (ccRes.data) setCostCenters(ccRes.data);
   };
@@ -267,7 +272,7 @@ const Lancamentos = () => {
     const type = form.tipo === "receber" ? "entrada" : "saida";
     const finalValue = type === "saida" ? -Math.abs(numericValue) : Math.abs(numericValue);
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       user_id: user.id,
       date: form.vencimento,
       description: form.descricao,
@@ -278,13 +283,14 @@ const Lancamentos = () => {
       type,
       status: form.status,
     };
+    if (companyId) payload.company_id = companyId;
 
     if (editItem) {
-      const { error } = await supabase.from("transactions").update(payload).eq("id", editItem.id);
+      const { error } = await supabase.from("transactions").update(payload as any).eq("id", editItem.id);
       if (error) { toast({ title: "Erro ao salvar", variant: "destructive" }); return; }
       toast({ title: "Lançamento atualizado" });
     } else {
-      const { error } = await supabase.from("transactions").insert(payload);
+      const { error } = await supabase.from("transactions").insert(payload as any);
       if (error) { toast({ title: "Erro ao criar", variant: "destructive" }); return; }
       toast({ title: "Lançamento criado" });
     }

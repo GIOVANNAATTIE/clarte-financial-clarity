@@ -11,11 +11,13 @@ import {
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useClient } from "@/contexts/ClientContext";
 
 type Categoria = { id: string; name: string; type: string };
 
 const Categorias = () => {
   const { toast } = useToast();
+  const { selectedClient } = useClient();
   const [items, setItems] = useState<Categoria[]>([]);
   const [search, setSearch] = useState("");
   const [tipoFilter, setTipoFilter] = useState("todos");
@@ -27,11 +29,13 @@ const Categorias = () => {
   const fetchItems = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data } = await supabase.from("categories").select("id, name, type").eq("user_id", user.id).order("name");
+    let query = supabase.from("categories").select("id, name, type").eq("user_id", user.id).order("name");
+    if (selectedClient) query = query.eq("company_id", selectedClient.id);
+    const { data } = await query;
     if (data) setItems(data);
   };
 
-  useEffect(() => { fetchItems(); }, []);
+  useEffect(() => { fetchItems(); }, [selectedClient]);
 
   const handleNew = () => { setEditItem({ name: "", type: "despesa" }); setDialogOpen(true); };
   const handleEdit = (item: Categoria) => { setEditItem({ id: item.id, name: item.name, type: item.type }); setDialogOpen(true); };
@@ -46,7 +50,9 @@ const Categorias = () => {
       if (error) { toast({ title: "Erro ao salvar", variant: "destructive" }); return; }
       toast({ title: "Categoria atualizada" });
     } else {
-      const { error } = await supabase.from("categories").insert({ user_id: user.id, name: editItem.name, type: editItem.type });
+      const payload: Record<string, unknown> = { user_id: user.id, name: editItem.name, type: editItem.type };
+      if (selectedClient) payload.company_id = selectedClient.id;
+      const { error } = await supabase.from("categories").insert(payload as any);
       if (error) { toast({ title: "Erro ao criar", variant: "destructive" }); return; }
       toast({ title: "Categoria criada" });
     }
