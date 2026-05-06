@@ -151,7 +151,7 @@ const Lancamentos = () => {
       }
     };
     fetchData();
-  }, []);
+  }, [companyId]);
 
   const refresh = async () => {
     const { data: { user } } = await supabase.auth.getUser();
