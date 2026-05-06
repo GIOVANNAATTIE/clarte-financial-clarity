@@ -286,11 +286,11 @@ const Lancamentos = () => {
     if (companyId) payload.company_id = companyId;
 
     if (editItem) {
-      const { error } = await supabase.from("transactions").update(payload).eq("id", editItem.id);
+      const { error } = await supabase.from("transactions").update(payload as any).eq("id", editItem.id);
       if (error) { toast({ title: "Erro ao salvar", variant: "destructive" }); return; }
       toast({ title: "Lançamento atualizado" });
     } else {
-      const { error } = await supabase.from("transactions").insert(payload);
+      const { error } = await supabase.from("transactions").insert(payload as any);
       if (error) { toast({ title: "Erro ao criar", variant: "destructive" }); return; }
       toast({ title: "Lançamento criado" });
     }
