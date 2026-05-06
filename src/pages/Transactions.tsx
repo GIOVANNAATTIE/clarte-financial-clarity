@@ -383,7 +383,19 @@ const Transactions = () => {
     setBulkDeleteOpen(false);
   };
 
+  const refreshClassifications = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const [catRes, ccRes] = await Promise.all([
+      supabase.from("categories").select("id, name, type").eq("user_id", user.id),
+      supabase.from("cost_centers").select("id, name").eq("user_id", user.id),
+    ]);
+    if (catRes.data) setCategories(catRes.data);
+    if (ccRes.data) setCostCenters(ccRes.data);
+  };
+
   const handleEdit = (t: Transaction) => {
+    refreshClassifications();
     setEditTransaction({ ...t });
     setEditOpen(true);
   };
