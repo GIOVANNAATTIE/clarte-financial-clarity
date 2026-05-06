@@ -383,7 +383,19 @@ const Transactions = () => {
     setBulkDeleteOpen(false);
   };
 
+  const refreshClassifications = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const [catRes, ccRes] = await Promise.all([
+      supabase.from("categories").select("id, name, type").eq("user_id", user.id),
+      supabase.from("cost_centers").select("id, name").eq("user_id", user.id),
+    ]);
+    if (catRes.data) setCategories(catRes.data);
+    if (ccRes.data) setCostCenters(ccRes.data);
+  };
+
   const handleEdit = (t: Transaction) => {
+    refreshClassifications();
     setEditTransaction({ ...t });
     setEditOpen(true);
   };
@@ -503,7 +515,7 @@ const Transactions = () => {
           <h1 className="font-heading text-2xl font-bold text-foreground">Movimentação</h1>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={() => setNewOpen(true)}>
+          <Button variant="outline" className="gap-2" onClick={() => { refreshClassifications(); setNewOpen(true); }}>
             <Plus size={16} /> Novo Lançamento
           </Button>
           <Dialog open={importOpen} onOpenChange={setImportOpen}>
