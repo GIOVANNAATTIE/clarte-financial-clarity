@@ -222,24 +222,26 @@ const Transactions = () => {
 
         let created = 0;
 
-        // Fetch fresh entities from DB before processing — avoids stale cache issues
-        const { data: freshEntities } = await supabase
+        // Fetch fresh entities from DB — filter by company if applicable
+        let entQ = supabase
           .from("entities")
           .select("id, name, type, default_category_id")
           .eq("user_id", userId);
-        // Use fresh list — also update state
-        const currentEntities: typeof entities = freshEntities || [...entities];
+        if (companyId) entQ = entQ.eq("company_id", companyId);
+        const { data: freshEntities } = await entQ;
+
+        const currentEntities: typeof entities = freshEntities ? [...freshEntities] : [...entities];
         if (freshEntities) setEntities(freshEntities);
 
         for (const ofx of parsed) {
-          // OFX description = clean client/supplier name (already processed by parser)
+          // OFX MEMO/NAME = client/supplier name — inject directly into entity_id column
           const entityName = ofx.description;
           const entityType = ofx.type === "entrada" ? "cliente" : "fornecedor";
 
           let entityId: string | null = null;
           let autoCategoryId: string | null = null;
 
-          // 1. Find existing entity by name (case-insensitive) in fresh list
+          // 1. Find existing entity by exact name match (case-insensitive)
           const matchedEntity = currentEntities.find(e =>
             e.name.toLowerCase() === entityName.toLowerCase()
           );
@@ -248,7 +250,7 @@ const Transactions = () => {
             entityId = matchedEntity.id;
             autoCategoryId = matchedEntity.default_category_id ?? null;
           } else {
-            // 2. Create new entity — fresh list already checked, no duplicate
+            // 2. Create new entity in DB and in Clientes/Fornecedores tab
             const insertPayload: Record<string, unknown> = {
               user_id: userId,
               name: entityName,
@@ -263,14 +265,13 @@ const Transactions = () => {
             if (!entityError && newEntity) {
               entityId = newEntity.id;
               autoCategoryId = newEntity.default_category_id ?? null;
-              // Add to current list so next iteration in same import won't duplicate
               currentEntities.push(newEntity);
             }
           }
 
           const value = ofx.type === "saida" ? -ofx.value : ofx.value;
 
-          // Description field = raw bank memo as observation only when it adds info
+          // Description = raw bank memo as observation ONLY when different from entity name
           const rawDesc = ofx.rawDescription || ofx.description;
           const observation = rawDesc.toLowerCase() !== entityName.toLowerCase()
             ? rawDesc
@@ -279,11 +280,11 @@ const Transactions = () => {
           const txPayload: Record<string, unknown> = {
             user_id: userId,
             date: ofx.date,
-            description: observation,  // observation only — not the entity name
+            description: observation,    // memo/observation — NOT the entity name
             value,
             type: ofx.type,
-            entity_id: entityId,       // ← CLIENT/SUPPLIER name linked here
-            category_id: autoCategoryId, // ← auto from entity default_category
+            entity_id: entityId,         // ← MEMO/NAME injected here as Cliente/Fornecedor
+            category_id: autoCategoryId, // ← auto-filled from Classificações if set
             status: "pendente",
           };
           if (companyId) txPayload.company_id = companyId;
