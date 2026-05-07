@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useClient } from "@/contexts/ClientContext";
 import ReactMarkdown from "react-markdown";
 
 const monthOptions = [
@@ -46,9 +47,12 @@ const currentDate = new Date();
 const formattedDate = format(currentDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
 
 const Insights = () => {
+  const { selectedClient } = useClient();
+  const companyName = selectedClient?.name || "sua empresa";
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [analysisContent, setAnalysisContent] = useState("");
+  const [filterType, setFilterType] = useState<"todos" | "receitas" | "despesas">("todos");
   const { toast } = useToast();
 
   // Date filters
@@ -132,7 +136,13 @@ const Insights = () => {
           Authorization: `Bearer ${session.access_token}`,
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
-        body: JSON.stringify({ dateFrom, dateTo }),
+        body: JSON.stringify({
+          dateFrom,
+          dateTo,
+          companyName,
+          companyId: selectedClient?.id,
+          filterType: filterType === "todos" ? undefined : filterType,
+        }),
       });
 
       if (!resp.ok) {
@@ -237,12 +247,31 @@ const Insights = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-2">
             <Brain className="text-gold" size={24} />
-            <h1 className="font-heading text-2xl font-bold text-foreground">Inteligência Financeira</h1>
+            <div>
+              <h1 className="font-heading text-2xl font-bold text-foreground">Inteligência Financeira</h1>
+              <p className="text-xs text-muted-foreground mt-0.5">{companyName}</p>
+            </div>
             <span className="text-[10px] font-semibold uppercase tracking-wider bg-gold/15 text-gold px-2 py-0.5 rounded-full">
               IA
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Filter type buttons */}
+            <div className="flex gap-1 bg-muted rounded-lg p-1">
+              {(["todos", "receitas", "despesas"] as const).map(f => (
+                <button
+                  key={f}
+                  onClick={() => setFilterType(f)}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors capitalize ${
+                    filterType === f
+                      ? f === "receitas" ? "bg-success text-white" : f === "despesas" ? "bg-destructive text-white" : "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {f === "todos" ? "Todos" : f === "receitas" ? "Receitas" : "Despesas"}
+                </button>
+              ))}
+            </div>
             <Button
               onClick={handleRefresh}
               disabled={isLoading}

@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter, Plus, Pencil, Trash2, Eye } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Search, Filter, Plus, Pencil, Trash2, Eye, Download, CalendarIcon, X } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 type AuditLog = {
   id: number;
@@ -42,49 +48,118 @@ const TrilhaAuditoria = () => {
   const [search, setSearch] = useState("");
   const [acaoFilter, setAcaoFilter] = useState("todas");
   const [moduloFilter, setModuloFilter] = useState("todos");
+  const [dateFrom, setDateFrom] = useState<Date>();
+  const [dateTo, setDateTo] = useState<Date>();
 
   const modulos = [...new Set(mockLogs.map(l => l.modulo))];
+
+  const clearFilters = () => {
+    setSearch("");
+    setAcaoFilter("todas");
+    setModuloFilter("todos");
+    setDateFrom(undefined);
+    setDateTo(undefined);
+  };
 
   const filtered = mockLogs.filter(l => {
     const matchSearch = l.descricao.toLowerCase().includes(search.toLowerCase()) || l.usuario.toLowerCase().includes(search.toLowerCase());
     const matchAcao = acaoFilter === "todas" || l.acao === acaoFilter;
     const matchModulo = moduloFilter === "todos" || l.modulo === moduloFilter;
-    return matchSearch && matchAcao && matchModulo;
+    const logDate = new Date(l.data);
+    const matchFrom = !dateFrom || logDate >= dateFrom;
+    const matchTo = !dateTo || logDate <= dateTo;
+    return matchSearch && matchAcao && matchModulo && matchFrom && matchTo;
   });
+
+  const exportToExcel = () => {
+    const headers = ["Data", "Hora", "Usuário", "Ação", "Módulo", "Descrição"];
+    const rows = filtered.map(l => [
+      new Date(l.data).toLocaleDateString("pt-BR"),
+      l.hora,
+      l.usuario,
+      l.acao,
+      l.modulo,
+      l.descricao,
+    ]);
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => `"${cell}"`).join(";"))
+      .join("\n");
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `trilha-auditoria-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="font-heading text-2xl font-bold text-foreground">Trilha de Auditoria</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="font-heading text-2xl font-bold text-foreground">Trilha de Auditoria</h1>
+        <Button variant="outline" className="gap-2" onClick={exportToExcel}>
+          <Download size={16} /> Exportar Excel
+        </Button>
+      </div>
 
       <div className="bg-card rounded-xl border border-border p-4 shadow-[var(--shadow-card)]">
-        <div className="flex flex-col md:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-            <Input placeholder="Buscar por descrição ou usuário..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-10 bg-background/50" />
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col md:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+              <Input placeholder="Buscar por descrição ou usuário..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-10 bg-background/50" />
+            </div>
+            <Select value={acaoFilter} onValueChange={setAcaoFilter}>
+              <SelectTrigger className="w-full md:w-40 h-10">
+                <Filter size={14} className="mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Ação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas Ações</SelectItem>
+                <SelectItem value="inclusão">Inclusão</SelectItem>
+                <SelectItem value="edição">Edição</SelectItem>
+                <SelectItem value="exclusão">Exclusão</SelectItem>
+                <SelectItem value="visualização">Visualização</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={moduloFilter} onValueChange={setModuloFilter}>
+              <SelectTrigger className="w-full md:w-44 h-10">
+                <Filter size={14} className="mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Módulo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos Módulos</SelectItem>
+                {modulos.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
-          <Select value={acaoFilter} onValueChange={setAcaoFilter}>
-            <SelectTrigger className="w-full md:w-40 h-10">
-              <Filter size={14} className="mr-2 text-muted-foreground" />
-              <SelectValue placeholder="Ação" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todas Ações</SelectItem>
-              <SelectItem value="inclusão">Inclusão</SelectItem>
-              <SelectItem value="edição">Edição</SelectItem>
-              <SelectItem value="exclusão">Exclusão</SelectItem>
-              <SelectItem value="visualização">Visualização</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={moduloFilter} onValueChange={setModuloFilter}>
-            <SelectTrigger className="w-full md:w-44 h-10">
-              <Filter size={14} className="mr-2 text-muted-foreground" />
-              <SelectValue placeholder="Módulo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos Módulos</SelectItem>
-              {modulos.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col sm:flex-row gap-3 items-center">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-full sm:w-48 justify-start text-left font-normal h-10", !dateFrom && "text-muted-foreground")}>
+                  <CalendarIcon size={14} className="mr-2" />
+                  {dateFrom ? format(dateFrom, "dd/MM/yyyy") : "Data início"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} locale={ptBR} className="p-3 pointer-events-auto" />
+              </PopoverContent>
+            </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-full sm:w-48 justify-start text-left font-normal h-10", !dateTo && "text-muted-foreground")}>
+                  <CalendarIcon size={14} className="mr-2" />
+                  {dateTo ? format(dateTo, "dd/MM/yyyy") : "Data fim"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={dateTo} onSelect={setDateTo} locale={ptBR} className="p-3 pointer-events-auto" />
+              </PopoverContent>
+            </Popover>
+            <Button variant="outline" size="sm" className="h-10 gap-2" onClick={clearFilters}>
+              <X size={14} /> Limpar Filtros
+            </Button>
+          </div>
         </div>
       </div>
 

@@ -23,7 +23,6 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Verify user
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     if (userError || !user) {
@@ -33,9 +32,8 @@ serve(async (req) => {
       });
     }
 
-    const { dateFrom, dateTo } = await req.json();
+    const { dateFrom, dateTo, companyName, companyId, filterType } = await req.json();
 
-    // Fetch all transactions for this user
     let query = supabase
       .from("transactions")
       .select("date, description, value, type, status, category_id, cost_center_id, entity_id")
@@ -43,8 +41,13 @@ serve(async (req) => {
       .neq("status", "cancelado")
       .order("date", { ascending: false });
 
+    if (companyId) query = query.eq("company_id", companyId);
     if (dateFrom) query = query.gte("date", dateFrom);
     if (dateTo) query = query.lte("date", dateTo);
+
+    // Filter by type if requested
+    if (filterType === "receitas") query = query.gte("value", 0);
+    else if (filterType === "despesas") query = query.lt("value", 0);
 
     const [txRes, catRes, ccRes, entRes] = await Promise.all([
       query,
@@ -59,41 +62,18 @@ serve(async (req) => {
     const ccMap = new Map(ccRes.data?.map(c => [c.id, c]) || []);
     const entMap = new Map(entRes.data?.map(e => [e.id, e]) || []);
 
-    // Clean description prefixes
-    const prefixes = [
-      "PIX ENVIADO PARA ", "PIX RECEBIDO DE ",
-      "PAGAMENTO DE BOLETO ", "PAGAMENTO DE CONTA / TRIBUTO ",
-      "PAGAMENTO DE CONTA/TRIBUTO ",
-      "TRANSFERENCIA ENVIADA PARA ", "TRANSFERENCIA RECEBIDA DE ",
-      "TED ENVIADA PARA ", "TED RECEBIDA DE ",
-      "DOC ENVIADO PARA ", "DOC RECEBIDO DE ",
-    ];
-
-    const cleanDesc = (raw: string | null) => {
-      if (!raw) return "";
-      let cleaned = raw.replace(/^-+\s*/, "");
-      const upper = cleaned.toUpperCase();
-      for (const p of prefixes) {
-        if (upper.startsWith(p)) return cleaned.slice(p.length).trim();
-      }
-      return cleaned;
-    };
-
-    // Build enriched transaction summaries for AI
     const enriched = txRes.data.map(t => {
       const cat = t.category_id ? catMap.get(t.category_id) : null;
       const cc = t.cost_center_id ? ccMap.get(t.cost_center_id) : null;
       const ent = t.entity_id ? entMap.get(t.entity_id) : null;
       return {
         data: t.date,
-        descricao: cleanDesc(t.description),
         valor: t.value,
-        tipo: t.type === "entrada" ? "Receita" : "Despesa",
+        tipo: t.value >= 0 ? "Receita" : "Despesa",
         status: t.status,
         categoria: cat?.name || "Sem categoria",
         centro_custo: cc?.name || "",
-        cliente_fornecedor: ent?.name ? cleanDesc(ent.name) : "",
-        tipo_entidade: ent?.type || "",
+        cliente_fornecedor: ent?.name || t.description || "",
       };
     });
 
@@ -104,7 +84,6 @@ serve(async (req) => {
       });
     }
 
-    // Build summary stats for context
     const totalReceitas = enriched.filter(t => t.valor >= 0).reduce((s, t) => s + t.valor, 0);
     const totalDespesas = enriched.filter(t => t.valor < 0).reduce((s, t) => s + Math.abs(t.valor), 0);
     const saldo = totalReceitas - totalDespesas;
@@ -115,41 +94,47 @@ serve(async (req) => {
       : dateTo ? `até ${dateTo}`
       : "todos os períodos disponíveis";
 
+    const empresa = companyName || "a empresa";
+    const filtroLabel = filterType === "receitas" ? " — Apenas Receitas" : filterType === "despesas" ? " — Apenas Despesas" : "";
+
     const dataPayload = JSON.stringify(enriched, null, 0);
 
-    const systemPrompt = `Você é um analista financeiro sênior (CFO) da empresa Clarté Assessoria Contábil. Analise os lançamentos financeiros REAIS abaixo e gere um relatório completo de inteligência financeira.
+    const systemPrompt = `Você é um analista financeiro sênior da Clarté Consultoria analisando os dados de ${empresa}.
 
 REGRAS OBRIGATÓRIAS:
+- Comece DIRETAMENTE com os dados e análise — ZERO introduções, ZERO apresentações, ZERO frases como "Com base nos dados..." ou "Analisando os lançamentos..."
 - Use SOMENTE os dados reais fornecidos — NUNCA invente dados
-- Cite nomes reais de clientes/fornecedores e categorias reais
-- Compare com mês anterior quando possível
-- Use linguagem clara, direta e profissional — como um CFO explicando para o dono do negócio
-- Destaque os pontos mais críticos primeiro (maior impacto financeiro)
-- Quando detectar algo suspeito ou fora do padrão, sugira uma ação ("verifique", "confirme", "considere revisar")
-- Formate o relatório em Markdown com seções claras
-- Use emojis para indicar severidade: 🔴 Crítico, 🟡 Atenção, 🟢 Positivo, ℹ️ Informativo
-- Valores monetários em formato brasileiro (R$ X.XXX,XX)
+- Cite nomes reais de clientes/fornecedores e categorias reais de ${empresa}
+- Compare meses quando houver dados históricos
+- Linguagem direta e profissional — como um CFO falando com o dono do negócio
+- Destaque pontos críticos PRIMEIRO
+- Quando algo for suspeito ou fora do padrão, indique ação concreta ("verifique", "confirme", "revise")
+- Formate em Markdown com seções claras usando ##
+- Emojis de severidade: 🔴 Crítico | 🟡 Atenção | 🟢 Positivo | ℹ️ Informativo
+- Valores em formato brasileiro: R$ X.XXX,XX
+- NUNCA mencione "Clarté Assessoria Contábil" — use apenas "Clarté Consultoria"
 
-ESTRUTURA OBRIGATÓRIA DO RELATÓRIO (use EXATAMENTE estes títulos de seção com ##):
+ESTRUTURA OBRIGATÓRIA (use EXATAMENTE estes títulos com ##):
 
 ## 📊 Resumo Executivo
-Visão geral do período com totais de receitas, despesas e saldo. Alertas críticos e pontos de atenção.
+Totais de receitas, despesas e saldo. Alertas críticos primeiro.
 
 ## 📈 Receitas
-Análise detalhada de todas as receitas: principais fontes/clientes, concentração de receita, variações, tendências, riscos de dependência de poucos clientes, comparações.
+Principais fontes, concentração, variações, riscos de dependência.
 
 ## 📉 Despesas
-Análise detalhada de todas as despesas: categorias mais onerosas, despesas recorrentes, variações significativas, oportunidades de redução, parcelas detectadas.
+Categorias mais onerosas, recorrências, variações, parcelas detectadas, oportunidades de redução.
 
-## 🏢 Fornecedores
-Análise dos principais fornecedores/prestadores: ranking por volume, frequência de pagamento, padrões detectados (duplicidades, valores fora do padrão), recomendações de negociação.
+## 🏢 Fornecedores e Clientes
+Ranking por volume, frequência de pagamento, padrões detectados (duplicidades, valores fora do padrão).
 
-## 💡 Recomendações e Projeções
-Ações concretas para otimizar o financeiro. Estimativas e projeções baseadas no histórico real.
+## 💡 Recomendações
+Ações concretas e objetivas. Projeções baseadas no histórico real.
 
 CONTEXTO:
-- Período analisado: ${periodoLabel}
-- Total de lançamentos: ${enriched.length}
+- Empresa: ${empresa}
+- Período: ${periodoLabel}${filtroLabel}
+- Lançamentos: ${enriched.length}
 - Total Receitas: R$ ${totalReceitas.toFixed(2)}
 - Total Despesas: R$ ${totalDespesas.toFixed(2)}
 - Saldo: R$ ${saldo.toFixed(2)}`;
@@ -172,7 +157,7 @@ CONTEXTO:
         model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Aqui estão os lançamentos financeiros reais para análise:\n\n${dataPayload}` },
+          { role: "user", content: `Dados financeiros reais de ${empresa}:\n\n${dataPayload}` },
         ],
         stream: true,
       }),
@@ -181,21 +166,16 @@ CONTEXTO:
     if (!aiResponse.ok) {
       if (aiResponse.status === 429) {
         return new Response(JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns instantes." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (aiResponse.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos de IA esgotados. Adicione créditos em Configurações > Workspace > Uso." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        return new Response(JSON.stringify({ error: "Créditos de IA esgotados." }), {
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const errText = await aiResponse.text();
-      console.error("AI gateway error:", aiResponse.status, errText);
       return new Response(JSON.stringify({ error: "Erro ao processar análise de IA" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 

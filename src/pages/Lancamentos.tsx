@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, Search, CalendarIcon, ArrowUpDown, ArrowUp, ArrowDown, Filter, Clock, CheckCircle2, AlertCircle, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, CalendarIcon, ArrowUpDown, ArrowUp, ArrowDown, Filter, Clock, CheckCircle2, AlertCircle, Pencil, Trash2, Download } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -128,7 +128,7 @@ const Lancamentos = () => {
       let entQ = supabase.from("entities").select("id, name, type, default_category_id").eq("user_id", user.id);
       let catQ = supabase.from("categories").select("id, name, type").eq("user_id", user.id);
       let ccQ = supabase.from("cost_centers").select("id, name").eq("user_id", user.id);
-      if (companyId) { txQ = txQ.eq("company_id", companyId); entQ = entQ.eq("company_id", companyId); catQ = catQ.eq("company_id", companyId); ccQ = ccQ.eq("company_id", companyId); }
+      if (companyId) { txQ = txQ.eq("company_id", companyId); entQ = entQ.eq("company_id", companyId); }
       const [txRes, entRes, catRes, ccRes] = await Promise.all([txQ, entQ, catQ, ccQ]);
       if (entRes.data) setEntities(entRes.data);
       if (catRes.data) setCategories(catRes.data);
@@ -217,7 +217,7 @@ const Lancamentos = () => {
     if (!user) return;
     let catQ = supabase.from("categories").select("id, name, type").eq("user_id", user.id);
     let ccQ = supabase.from("cost_centers").select("id, name").eq("user_id", user.id);
-    if (companyId) { catQ = catQ.eq("company_id", companyId); ccQ = ccQ.eq("company_id", companyId); }
+    // categories and cost_centers use user_id only
     const [catRes, ccRes] = await Promise.all([catQ, ccQ]);
     if (catRes.data) setCategories(catRes.data);
     if (ccRes.data) setCostCenters(ccRes.data);
@@ -288,12 +288,27 @@ const Lancamentos = () => {
     if (editItem) {
       const { error } = await supabase.from("transactions").update(payload as any).eq("id", editItem.id);
       if (error) { toast({ title: "Erro ao salvar", variant: "destructive" }); return; }
-      toast({ title: "Lançamento atualizado" });
     } else {
       const { error } = await supabase.from("transactions").insert(payload as any);
       if (error) { toast({ title: "Erro ao criar", variant: "destructive" }); return; }
-      toast({ title: "Lançamento criado" });
     }
+
+    // If entity + category are set, update entity's default_category_id automatically
+    if (form.entity_id && form.category_id) {
+      const entity = entities.find(e => e.id === form.entity_id);
+      if (entity && entity.default_category_id !== form.category_id) {
+        await supabase.from("entities").update({
+          default_category_id: form.category_id,
+        }).eq("id", form.entity_id);
+        setEntities(prev => prev.map(e =>
+          e.id === form.entity_id
+            ? { ...e, default_category_id: form.category_id }
+            : e
+        ));
+      }
+    }
+
+    toast({ title: editItem ? "Lançamento atualizado" : "Lançamento criado" });
     setDialogOpen(false);
     await refresh();
   };
@@ -317,17 +332,50 @@ const Lancamentos = () => {
 
   const hasFilters = search || statusFilter !== "todos" || dateFrom || dateTo;
 
+  const exportToExcel = () => {
+    const allFiltered = lancamentos.filter(l => {
+      const matchSearch = (l.descricao || "").toLowerCase().includes(search.toLowerCase()) || l.entity_name.toLowerCase().includes(search.toLowerCase());
+      const matchStatus = statusFilter === "todos" || l.status === statusFilter;
+      const lDate = new Date(l.vencimento);
+      const matchFrom = !dateFrom || lDate >= dateFrom;
+      const matchTo = !dateTo || lDate <= dateTo;
+      return matchSearch && matchStatus && matchFrom && matchTo;
+    });
+    const headers = ["Tipo", "Descrição", "Cliente/Fornecedor", "Categoria", "Centro de Custo", "Valor", "Vencimento", "Status"];
+    const rows = allFiltered.map(l => [
+      l.tipo === "receber" ? "Receber" : "Pagar",
+      l.descricao || "",
+      l.entity_name,
+      l.categoria,
+      l.centro_custo,
+      Math.abs(l.valor).toFixed(2).replace(".", ","),
+      new Date(l.vencimento).toLocaleDateString("pt-BR"),
+      l.status,
+    ]);
+    const csvContent = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(";")).join("\n");
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `lancamentos-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="font-heading text-2xl font-bold text-foreground">Lançamentos</h1>
-          <p className="text-sm text-muted-foreground mt-1">Contas a pagar e a receber</p>
         </div>
-        <Button variant="hero" size="lg" className="gap-2" onClick={openNew}>
-          <Plus size={18} />
-          Novo Lançamento
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="gap-2" onClick={exportToExcel}>
+            <Download size={16} /> Exportar Excel
+          </Button>
+          <Button variant="hero" size="lg" className="gap-2" onClick={openNew}>
+            <Plus size={18} />
+            Novo Lançamento
+          </Button>
+        </div>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -393,11 +441,9 @@ const Lancamentos = () => {
                 <Calendar mode="single" selected={dateTo} onSelect={setDateTo} locale={ptBR} className="p-3 pointer-events-auto" />
               </PopoverContent>
             </Popover>
-            {hasFilters && (
-              <Button variant="ghost" size="sm" className="h-10" onClick={clearFilters}>
+            <Button variant="outline" size="sm" className="h-10" onClick={clearFilters}>
                 Limpar filtros
               </Button>
-            )}
           </div>
         </div>
 

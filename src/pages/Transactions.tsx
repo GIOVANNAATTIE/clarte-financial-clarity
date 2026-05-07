@@ -25,7 +25,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Upload, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, FileText, MoreHorizontal, Pencil, Trash2, Plus } from "lucide-react";
+import { Upload, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, FileText, MoreHorizontal, Pencil, Trash2, Plus, Download } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
@@ -144,13 +144,12 @@ const Transactions = () => {
 
       let txQ = supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false });
       let entQ = supabase.from("entities").select("id, name, type, default_category_id").eq("user_id", user.id);
-      let catQ = supabase.from("categories").select("id, name, type").eq("user_id", user.id);
-      let ccQ = supabase.from("cost_centers").select("id, name").eq("user_id", user.id);
+      // Categories and cost_centers belong to user only — never filter by company_id
+      const catQ = supabase.from("categories").select("id, name, type").eq("user_id", user.id);
+      const ccQ = supabase.from("cost_centers").select("id, name").eq("user_id", user.id);
       if (companyId) {
         txQ = txQ.eq("company_id", companyId);
         entQ = entQ.eq("company_id", companyId);
-        catQ = catQ.eq("company_id", companyId);
-        ccQ = ccQ.eq("company_id", companyId);
       }
 
       const [txRes, entRes, catRes, ccRes] = await Promise.all([txQ, entQ, catQ, ccQ]);
@@ -222,54 +221,69 @@ const Transactions = () => {
          }
 
         let created = 0;
+
+        // Fetch fresh entities from DB before processing — avoids stale cache issues
+        const { data: freshEntities } = await supabase
+          .from("entities")
+          .select("id, name, type, default_category_id")
+          .eq("user_id", userId);
+        // Use fresh list — also update state
+        const currentEntities: typeof entities = freshEntities || [...entities];
+        if (freshEntities) setEntities(freshEntities);
+
         for (const ofx of parsed) {
+          // OFX description = clean client/supplier name (already processed by parser)
+          const entityName = ofx.description;
+          const entityType = ofx.type === "entrada" ? "cliente" : "fornecedor";
+
           let entityId: string | null = null;
-          // Check for existing entity (case-insensitive duplicate prevention)
-          const matchedEntity = entities.find((ent) =>
-            ent.name.toLowerCase() === ofx.description.toLowerCase()
-          ) || entities.find((ent) =>
-            ofx.description.toLowerCase().includes(ent.name.toLowerCase())
+          let autoCategoryId: string | null = null;
+
+          // 1. Find existing entity by name (case-insensitive) in fresh list
+          const matchedEntity = currentEntities.find(e =>
+            e.name.toLowerCase() === entityName.toLowerCase()
           );
 
           if (matchedEntity) {
             entityId = matchedEntity.id;
+            autoCategoryId = matchedEntity.default_category_id ?? null;
           } else {
-            // Check DB for duplicate before inserting
-            const entityType = ofx.type === "entrada" ? "cliente" : "fornecedor";
-            const { data: existingEntity } = await supabase.from("entities")
+            // 2. Create new entity — fresh list already checked, no duplicate
+            const insertPayload: Record<string, unknown> = {
+              user_id: userId,
+              name: entityName,
+              type: entityType,
+            };
+            if (companyId) insertPayload.company_id = companyId;
+            const { data: newEntity, error: entityError } = await supabase
+              .from("entities")
+              .insert(insertPayload as any)
               .select("id, name, type, default_category_id")
-              .eq("user_id", userId)
-              .ilike("name", ofx.description)
-              .maybeSingle();
-
-            if (existingEntity) {
-              entityId = existingEntity.id;
-              setEntities((prev) => prev.some(e => e.id === existingEntity.id) ? prev : [...prev, existingEntity]);
-            } else {
-              const insertPayload: Record<string, unknown> = {
-                user_id: userId,
-                name: ofx.description,
-                type: entityType,
-              };
-              if (companyId) insertPayload.company_id = companyId;
-              const { data: newEntity, error: entityError } = await supabase.from("entities").insert(insertPayload as any).select("id, name, type, default_category_id").single();
-              if (entityError) throw entityError;
-              if (newEntity) {
-                entityId = newEntity.id;
-                setEntities((prev) => [...prev, newEntity]);
-              }
+              .single();
+            if (!entityError && newEntity) {
+              entityId = newEntity.id;
+              autoCategoryId = newEntity.default_category_id ?? null;
+              // Add to current list so next iteration in same import won't duplicate
+              currentEntities.push(newEntity);
             }
           }
 
           const value = ofx.type === "saida" ? -ofx.value : ofx.value;
 
+          // Description field = raw bank memo as observation only when it adds info
+          const rawDesc = ofx.rawDescription || ofx.description;
+          const observation = rawDesc.toLowerCase() !== entityName.toLowerCase()
+            ? rawDesc
+            : null;
+
           const txPayload: Record<string, unknown> = {
             user_id: userId,
             date: ofx.date,
-            description: ofx.description,
+            description: observation,  // observation only — not the entity name
             value,
             type: ofx.type,
-            entity_id: entityId,
+            entity_id: entityId,       // ← CLIENT/SUPPLIER name linked here
+            category_id: autoCategoryId, // ← auto from entity default_category
             status: "pendente",
           };
           if (companyId) txPayload.company_id = companyId;
@@ -416,17 +430,27 @@ const Transactions = () => {
   const refreshClassifications = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    let catQ = supabase.from("categories").select("id, name, type").eq("user_id", user.id);
-    let ccQ = supabase.from("cost_centers").select("id, name").eq("user_id", user.id);
-    if (companyId) { catQ = catQ.eq("company_id", companyId); ccQ = ccQ.eq("company_id", companyId); }
-    const [catRes, ccRes] = await Promise.all([catQ, ccQ]);
+    // Categories and cost_centers belong to user only — no company_id filter
+    const [catRes, ccRes] = await Promise.all([
+      supabase.from("categories").select("id, name, type").eq("user_id", user.id),
+      supabase.from("cost_centers").select("id, name").eq("user_id", user.id),
+    ]);
     if (catRes.data) setCategories(catRes.data);
     if (ccRes.data) setCostCenters(ccRes.data);
   };
 
   const handleEdit = (t: Transaction) => {
     refreshClassifications();
-    setEditTransaction({ ...t });
+    // If transaction has no entity linked yet, try to find one by description
+    let entityId = t.entity_id;
+    if (!entityId && t.description) {
+      const match = entities.find(e =>
+        e.name.toLowerCase() === t.description?.toLowerCase() ||
+        t.description?.toLowerCase().includes(e.name.toLowerCase())
+      );
+      if (match) entityId = match.id;
+    }
+    setEditTransaction({ ...t, entity_id: entityId });
     setEditOpen(true);
   };
 
@@ -540,6 +564,27 @@ const Transactions = () => {
 
   const hasFilters = dateFrom || dateTo || categoryFilter !== "todas" || statusFilter !== "todos" || costCenterFilter !== "todos" || search;
 
+  const exportToExcel = () => {
+    const toExport = selectedIds.size > 0 ? filtered.filter(t => selectedIds.has(t.id)) : filtered;
+    const headers = ["Data", "Descrição", "Categoria", "Centro de Custo", "Valor", "Status"];
+    const rows = toExport.map(t => [
+      new Date(t.date).toLocaleDateString("pt-BR"),
+      t.description || "",
+      t.category_name || "",
+      t.cost_center_name || "",
+      t.value.toFixed(2).replace(".", ","),
+      t.status,
+    ]);
+    const csvContent = [headers, ...rows].map(row => row.map(cell => `"${String(cell)}"`).join(";")).join("\n");
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `movimentacao-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -547,6 +592,9 @@ const Transactions = () => {
           <h1 className="font-heading text-2xl font-bold text-foreground">Movimentação</h1>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" className="gap-2" onClick={exportToExcel}>
+            <Download size={16} /> {selectedIds.size > 0 ? `Exportar (${selectedIds.size})` : "Exportar Excel"}
+          </Button>
           <Button variant="outline" className="gap-2" onClick={() => { refreshClassifications(); setNewOpen(true); }}>
             <Plus size={16} /> Novo Lançamento
           </Button>
@@ -694,7 +742,7 @@ const Transactions = () => {
                 </th>
                 {[
                   { field: "date" as SortField, label: "Data" },
-                  { field: "description" as SortField, label: "Descrição" },
+                  { field: "description" as SortField, label: "Cliente / Fornecedor" },
                   { field: "category" as SortField, label: "Categoria" },
                   { field: "costCenter" as SortField, label: "Centro de Custo", hideOnMobile: true },
                   { field: "value" as SortField, label: "Valor" },
@@ -733,9 +781,16 @@ const Transactions = () => {
                     </td>
                     <td className="px-5 py-3.5 text-sm text-foreground">
                       <div>
-                        <span className="font-medium">{main}</span>
-                        {detail && <span className="block text-xs text-muted-foreground mt-0.5">{detail}</span>}
-                        {!detail && t.entity_name && <span className="block text-xs text-muted-foreground">{t.entity_name}</span>}
+                        <span className="font-medium">
+                          {t.entity_name || main || "—"}
+                        </span>
+                        {/* Show description as observation only when it has extra info beyond the entity name */}
+                        {t.description && t.entity_name &&
+                          t.description.toLowerCase() !== t.entity_name.toLowerCase() && (
+                          <span className="block text-xs text-muted-foreground mt-0.5">
+                            {t.description}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-5 py-3.5 text-sm text-muted-foreground">
@@ -846,8 +901,8 @@ const Transactions = () => {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Descrição</Label>
-              <Input value={newTransaction.description} onChange={(e) => setNewTransaction({ ...newTransaction, description: e.target.value })} placeholder="Descrição do lançamento" />
+              <Label>Observação / Mensagem <span className="text-xs text-muted-foreground">(opcional)</span></Label>
+              <Input value={newTransaction.description} onChange={(e) => setNewTransaction({ ...newTransaction, description: e.target.value })} placeholder="Ex: parc 2/5, mensagem do banco..." />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -935,8 +990,8 @@ const Transactions = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Descrição</Label>
-                <Input value={editTransaction.description || ""} onChange={(e) => setEditTransaction({ ...editTransaction, description: e.target.value })} />
+                <Label>Observação / Mensagem <span className="text-xs text-muted-foreground">(opcional)</span></Label>
+                <Input value={editTransaction.description || ""} onChange={(e) => setEditTransaction({ ...editTransaction, description: e.target.value })} placeholder="Ex: parc 2/5, mensagem do banco..." />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

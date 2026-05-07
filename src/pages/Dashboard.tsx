@@ -22,6 +22,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
+import { useClient } from "@/contexts/ClientContext";
 
 const months = [
   { value: "all", label: "Todos os meses" },
@@ -56,6 +57,7 @@ const formatCurrency = (value: number) =>
 type RawTx = { date: string; value: number; status: string };
 
 const Dashboard = () => {
+  const { selectedClient } = useClient();
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear().toString());
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
   const [filterMode, setFilterMode] = useState<"months" | "custom">("months");
@@ -67,11 +69,13 @@ const Dashboard = () => {
     const fetchData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data } = await supabase.from("transactions").select("date, value, status").eq("user_id", user.id);
+      let q = supabase.from("transactions").select("date, value, status").eq("user_id", user.id);
+      if (selectedClient?.id) q = q.eq("company_id", selectedClient.id);
+      const { data } = await q;
       if (data) setTransactions(data);
     };
     fetchData();
-  }, []);
+  }, [selectedClient?.id]);
 
   // Filter out cancelled transactions
   const activeTx = useMemo(() => transactions.filter(t => t.status !== "cancelado"), [transactions]);

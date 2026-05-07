@@ -96,7 +96,7 @@ const ClientesFornecedores = () => {
     if (!user) return;
     let entQ = supabase.from("entities").select("*").eq("user_id", user.id).order("name");
     let catQ = supabase.from("categories").select("id, name").eq("user_id", user.id).order("name");
-    if (companyId) { entQ = entQ.eq("company_id", companyId); catQ = catQ.eq("company_id", companyId); }
+    if (companyId) { entQ = entQ.eq("company_id", companyId); }
     const [entRes, catRes] = await Promise.all([entQ, catQ]);
     if (entRes.data) setEntities(entRes.data);
     if (catRes.data) setCategories(catRes.data);
